@@ -1,0 +1,3 @@
+[submodule "external/moltbook-client"]
+	path = external/moltbook-client
+	url = https://github.com/Fristender/moltbook-client.git
