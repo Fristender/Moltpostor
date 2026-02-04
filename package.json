@@ -1,0 +1,20 @@
+{
+  "name": "moltpostor",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Open-source cross-platform client for Moltbook (Reddit-like platform).",
+  "license": "MIT",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "npm run dev -w @moltpostor/web",
+    "build": "npm run --workspaces --if-present build",
+    "typecheck": "npm run --workspaces --if-present typecheck",
+    "lint": "npm run --workspaces --if-present lint"
+  }
+}
