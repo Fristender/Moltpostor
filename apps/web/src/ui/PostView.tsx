@@ -105,7 +105,22 @@ export function PostView(props: { api: MoltbookApi; postId: string }) {
     <section>
       <h2>{String(post.title ?? "")}</h2>
       <div style={{ fontSize: 12, opacity: 0.75 }}>
-        {post.submolt ? `m/${post.submolt.name ?? post.submolt}` : ""} {post.author ? ` · u/${post.author.name ?? post.author}` : ""}{" "}
+        {post.submolt ? (
+          <>
+            <a
+              href={`#/m/${encodeURIComponent(String(post.submolt.name ?? post.submolt))}`}
+              onClick={(e) => {
+                e.preventDefault();
+                window.location.hash = `#/m/${encodeURIComponent(String(post.submolt.name ?? post.submolt))}`;
+              }}
+            >
+              m/{String(post.submolt.name ?? post.submolt)}
+            </a>
+          </>
+        ) : (
+          ""
+        )}{" "}
+        {post.author ? ` · u/${post.author.name ?? post.author}` : ""}{" "}
         {post.created_at ? ` · ${post.created_at}` : ""} · score {score}
       </div>
       {post.url && (

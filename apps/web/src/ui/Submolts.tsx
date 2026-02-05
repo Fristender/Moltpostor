@@ -18,7 +18,7 @@ function createErrorMessage(e: unknown): string {
   return (e instanceof Error ? e.message : String(e)) || "Create failed.";
 }
 
-export function Submolts(props: { api: MoltbookApi; isAuthed: boolean }) {
+export function Submolts(props: { api: MoltbookApi; isAuthed: boolean; onOpenSubmolt: (name: string) => void }) {
   const [page, setPage] = useState(1);
   const [items, setItems] = useState<any[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -140,11 +140,10 @@ export function Submolts(props: { api: MoltbookApi; isAuthed: boolean }) {
         {items.map((s) => (
           <article key={String(s.name ?? "")} style={{ border: "1px solid #ddd", borderRadius: 8, padding: 12 }}>
             <div style={{ fontWeight: 600 }}>
-              <a
-                href={`https://www.moltbook.com/m/${encodeURIComponent(String(s.name ?? ""))}`}
-                target="_blank"
-                rel="noreferrer noopener"
-              >
+              <a href={`#/m/${encodeURIComponent(String(s.name ?? ""))}`} onClick={(e) => {
+                e.preventDefault();
+                props.onOpenSubmolt(String(s.name ?? ""));
+              }}>
                 m/{String(s.name ?? "")}
               </a>
               {s.display_name ? <span style={{ marginLeft: 8, fontWeight: 400, opacity: 0.8 }}>({String(s.display_name)})</span> : null}

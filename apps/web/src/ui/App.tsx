@@ -3,6 +3,7 @@ import { MoltbookApi, MoltbookHttpClient, DEFAULT_MOLTBOOK_BASE_URL } from "@mol
 import { Feed } from "./Feed";
 import { Login } from "./Login";
 import { Submolts } from "./Submolts";
+import { SubmoltView } from "./SubmoltView";
 import { PostView } from "./PostView";
 import { Compose } from "./Compose";
 import { useStoredApiKey } from "./useStoredApiKey";
@@ -10,6 +11,7 @@ import { useStoredApiKey } from "./useStoredApiKey";
 type Page =
   | { kind: "feed" }
   | { kind: "submolts" }
+  | { kind: "submolt"; name: string }
   | { kind: "post"; id: string }
   | { kind: "compose" }
   | { kind: "login" };
@@ -25,6 +27,8 @@ function parseRoute(hash: string): Page {
   if (parts[0] === "compose") return { kind: "compose" };
   if (parts[0] === "login") return { kind: "login" };
   if (parts[0] === "post" && parts[1]) return { kind: "post", id: decodeURIComponent(parts[1]) };
+  // Use /m/:name to mirror Moltbook's URLs.
+  if (parts[0] === "m" && parts[1]) return { kind: "submolt", name: decodeURIComponent(parts[1]) };
 
   return { kind: "feed" };
 }
@@ -36,6 +40,9 @@ function setRoute(page: Page) {
       return;
     case "submolts":
       window.location.hash = "#/submolts";
+      return;
+    case "submolt":
+      window.location.hash = `#/m/${encodeURIComponent(page.name)}`;
       return;
     case "compose":
       window.location.hash = "#/compose";
@@ -121,8 +128,16 @@ export function App() {
           }}
         />
       )}
-      {page.kind === "feed" && <Feed api={api} isAuthed={!!apiKey} onOpenPost={(id) => setRoute({ kind: "post", id })} />}
-      {page.kind === "submolts" && <Submolts api={api} isAuthed={!!apiKey} />}
+      {page.kind === "feed" && (
+        <Feed
+          api={api}
+          isAuthed={!!apiKey}
+          onOpenPost={(id) => setRoute({ kind: "post", id })}
+          onOpenSubmolt={(name) => setRoute({ kind: "submolt", name })}
+        />
+      )}
+      {page.kind === "submolts" && <Submolts api={api} isAuthed={!!apiKey} onOpenSubmolt={(name) => setRoute({ kind: "submolt", name })} />}
+      {page.kind === "submolt" && <SubmoltView api={api} name={page.name} onOpenPost={(id) => setRoute({ kind: "post", id })} />}
       {page.kind === "post" && <PostView api={api} postId={page.id} />}
       {page.kind === "compose" && <Compose api={api} onDone={() => setRoute({ kind: "feed" })} />}
 

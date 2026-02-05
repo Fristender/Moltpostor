@@ -8,19 +8,26 @@ function normalizePosts(data: any): any[] {
   return [];
 }
 
-export function Feed(props: { api: MoltbookApi; isAuthed: boolean; onOpenPost: (id: string) => void; onOpenSubmolt: (name: string) => void }) {
+export function SubmoltView(props: { api: MoltbookApi; name: string; onOpenPost: (id: string) => void }) {
   const [page, setPage] = useState(1);
+  const [submolt, setSubmolt] = useState<any | null>(null);
   const [posts, setPosts] = useState<any[]>([]);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setPage(1);
+  }, [props.name]);
 
   useEffect(() => {
     let cancelled = false;
     setError(null);
     (async () => {
       try {
-        const data = props.isAuthed ? await props.api.getPersonalizedFeed(page) : await props.api.getGlobalFeed(page);
+        const s = await props.api.getSubmolt(props.name);
+        const f = await props.api.getSubmoltFeed(props.name, page);
         if (cancelled) return;
-        setPosts(normalizePosts(data));
+        setSubmolt(s.submolt ?? s);
+        setPosts(normalizePosts(f));
       } catch (e: any) {
         if (cancelled) return;
         setError(e?.message ?? String(e));
@@ -29,40 +36,35 @@ export function Feed(props: { api: MoltbookApi; isAuthed: boolean; onOpenPost: (
     return () => {
       cancelled = true;
     };
-  }, [page, props.api, props.isAuthed]);
+  }, [page, props.api, props.name]);
 
   return (
     <section>
-      <h2>{props.isAuthed ? "My feed" : "Global feed"}</h2>
+      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12 }}>
+        <div>
+          <h2 style={{ marginBottom: 4 }}>m/{props.name}</h2>
+          {submolt?.display_name ? <div style={{ opacity: 0.8 }}>{String(submolt.display_name)}</div> : null}
+        </div>
+        <a href={`https://www.moltbook.com/m/${encodeURIComponent(props.name)}`} target="_blank" rel="noreferrer noopener">
+          View on Moltbook
+        </a>
+      </div>
+
+      {submolt?.description ? <p style={{ opacity: 0.9 }}>{String(submolt.description)}</p> : null}
+
       {error && <div style={{ color: "crimson" }}>{error}</div>}
+
       <div style={{ display: "grid", gap: 12 }}>
         {posts.map((p) => {
           const id = String(p.id ?? "");
           const score = (p.upvotes ?? 0) - (p.downvotes ?? 0);
-          const subName = p.submolt ? String(p.submolt.name ?? p.submolt) : "";
           return (
             <article key={id} style={{ border: "1px solid #ddd", borderRadius: 8, padding: 12 }}>
               <div style={{ display: "flex", gap: 8, justifyContent: "space-between" }}>
                 <div>
                   <div style={{ fontSize: 16, fontWeight: 600 }}>{String(p.title ?? "")}</div>
                   <div style={{ fontSize: 12, opacity: 0.75 }}>
-                    {subName ? (
-                      <>
-                        <a
-                          href={`#/m/${encodeURIComponent(subName)}`}
-                          onClick={(e) => {
-                            e.preventDefault();
-                            props.onOpenSubmolt(subName);
-                          }}
-                        >
-                          m/{subName}
-                        </a>
-                      </>
-                    ) : (
-                      ""
-                    )}{" "}
-                    {p.author ? ` · u/${p.author.name ?? p.author}` : ""}{" "}
-                    {p.created_at ? ` · ${p.created_at}` : ""}
+                    {p.author ? `u/${p.author.name ?? p.author}` : ""} {p.created_at ? ` · ${p.created_at}` : ""}
                   </div>
                 </div>
                 <div style={{ minWidth: 80, textAlign: "right" }}>Score: {score}</div>
@@ -81,6 +83,7 @@ export function Feed(props: { api: MoltbookApi; isAuthed: boolean; onOpenPost: (
           );
         })}
       </div>
+
       <div style={{ display: "flex", justifyContent: "space-between", marginTop: 12 }}>
         <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1}>
           Prev
@@ -91,3 +94,4 @@ export function Feed(props: { api: MoltbookApi; isAuthed: boolean; onOpenPost: (
     </section>
   );
 }
+
