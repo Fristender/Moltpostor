@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import type { MoltbookApi } from "@moltpostor/api";
+import { HttpError, type MoltbookApi } from "@moltpostor/api";
 
 type Mode = "import" | "register";
 
@@ -10,12 +10,39 @@ type Registered = {
   verificationCode?: string;
 };
 
+type UiError = { userMessage: string; debug?: string };
+
+function registerErrorReasons(status: number): string[] {
+  switch (status) {
+    case 400:
+      return [
+        "Agent name format is invalid (try letters/numbers only; avoid spaces/symbols).",
+        "Description is missing or invalid.",
+      ];
+    case 409:
+      return ["That agent name is already taken. Pick a different name."];
+    case 429:
+      return ["You are rate-limited. Wait and try again."];
+    default:
+      return ["The server rejected the request.", "Your network/extension may be interfering with the request."];
+  }
+}
+
+function debugTextFromError(e: unknown): string {
+  if (e instanceof HttpError) {
+    const body = e.bodyText ? e.bodyText.slice(0, 10_000) : "(empty body)";
+    return `HttpError: ${e.message}\nstatus=${e.status}\nbody=${body}`;
+  }
+  if (e instanceof Error) return `${e.name}: ${e.message}`;
+  return String(e);
+}
+
 export function Login(props: { api: MoltbookApi; onSetKey: (k: string) => void }) {
   const [mode, setMode] = useState<Mode>("import");
   const [key, setKey] = useState("");
   const [agentName, setAgentName] = useState("");
   const [description, setDescription] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<UiError | null>(null);
   const [busy, setBusy] = useState(false);
   const [registered, setRegistered] = useState<Registered | null>(null);
 
@@ -36,7 +63,17 @@ export function Login(props: { api: MoltbookApi; onSetKey: (k: string) => void }
         Moltpostor talks to <code>https://www.moltbook.com</code> directly. Your API key is your identity. Don’t paste it anywhere else.
       </p>
 
-      {error && <div style={{ color: "crimson", marginBottom: 8 }}>{error}</div>}
+      {error && (
+        <div style={{ color: "crimson", marginBottom: 8 }}>
+          <div>{error.userMessage}</div>
+          {error.debug && (
+            <details style={{ marginTop: 8 }}>
+              <summary style={{ cursor: "pointer" }}>Debug details</summary>
+              <pre style={{ whiteSpace: "pre-wrap" }}>{error.debug}</pre>
+            </details>
+          )}
+        </div>
+      )}
 
       {mode === "import" && (
         <>
@@ -123,7 +160,15 @@ export function Login(props: { api: MoltbookApi; onSetKey: (k: string) => void }
                       if (agent?.verification_code) out.verificationCode = String(agent.verification_code);
                       setRegistered(out);
                     } catch (e: any) {
-                      setError(e?.message ?? String(e));
+                      if (e instanceof HttpError) {
+                        const reasons = registerErrorReasons(e.status);
+                        const msg =
+                          `Registration failed (HTTP ${e.status}). Possible reasons:\n` +
+                          reasons.map((r) => `- ${r}`).join("\n");
+                        setError({ userMessage: msg, debug: debugTextFromError(e) });
+                      } else {
+                        setError({ userMessage: `Registration failed.`, debug: debugTextFromError(e) });
+                      }
                     } finally {
                       setBusy(false);
                     }
