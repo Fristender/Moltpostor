@@ -1,13 +1,24 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import type { MoltbookApi } from "@moltpostor/api";
 
-export function Compose(props: { api: MoltbookApi; onDone: () => void }) {
+export function Compose(props: { api: MoltbookApi; onDone: () => void; initialSubmolt?: string }) {
   const [submolt, setSubmolt] = useState("");
   const [title, setTitle] = useState("");
   const [url, setUrl] = useState("");
   const [content, setContent] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const lastInitialRef = useRef<string | undefined>(undefined);
+
+  useEffect(() => {
+    const init = props.initialSubmolt?.trim();
+    if (!init) return;
+    // Only overwrite the field when navigating into compose with a new prefill.
+    if (lastInitialRef.current !== init) {
+      setSubmolt(init);
+      lastInitialRef.current = init;
+    }
+  }, [props.initialSubmolt]);
 
   return (
     <section>

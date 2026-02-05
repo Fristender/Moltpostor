@@ -13,18 +13,25 @@ type Page =
   | { kind: "submolts" }
   | { kind: "submolt"; name: string }
   | { kind: "post"; id: string }
-  | { kind: "compose" }
+  | { kind: "compose"; submolt?: string }
   | { kind: "login" };
 
 function parseRoute(hash: string): Page {
   const h = hash.startsWith("#") ? hash.slice(1) : hash;
-  const path = h.startsWith("/") ? h : `/${h}`;
+  const fullPath = h.startsWith("/") ? h : `/${h}`;
+  const split = fullPath.split("?", 2);
+  const path = split[0] ?? "/";
+  const query = split[1] ?? "";
   const parts = path.split("/").filter(Boolean);
+  const params = new URLSearchParams(query);
 
   if (parts.length === 0) return { kind: "feed" };
   if (parts[0] === "feed") return { kind: "feed" };
   if (parts[0] === "submolts") return { kind: "submolts" };
-  if (parts[0] === "compose") return { kind: "compose" };
+  if (parts[0] === "compose") {
+    const submolt = params.get("submolt")?.trim() || undefined;
+    return submolt ? { kind: "compose", submolt } : { kind: "compose" };
+  }
   if (parts[0] === "login") return { kind: "login" };
   if (parts[0] === "post" && parts[1]) return { kind: "post", id: decodeURIComponent(parts[1]) };
   // Use /m/:name to mirror Moltbook's URLs.
@@ -45,7 +52,9 @@ function setRoute(page: Page) {
       window.location.hash = `#/m/${encodeURIComponent(page.name)}`;
       return;
     case "compose":
-      window.location.hash = "#/compose";
+      window.location.hash = page.submolt
+        ? `#/compose?submolt=${encodeURIComponent(page.submolt)}`
+        : "#/compose";
       return;
     case "login":
       window.location.hash = "#/login";
@@ -96,7 +105,13 @@ export function App() {
         <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
           <button onClick={() => setRoute({ kind: "feed" })}>Feed</button>
           <button onClick={() => setRoute({ kind: "submolts" })}>Submolts</button>
-          <button onClick={() => setRoute({ kind: "compose" })} disabled={!apiKey}>
+          <button
+            onClick={() => {
+              if (page.kind === "submolt") setRoute({ kind: "compose", submolt: page.name });
+              else setRoute({ kind: "compose" });
+            }}
+            disabled={!apiKey}
+          >
             + Post
           </button>
         </div>
@@ -139,7 +154,13 @@ export function App() {
       {page.kind === "submolts" && <Submolts api={api} isAuthed={!!apiKey} onOpenSubmolt={(name) => setRoute({ kind: "submolt", name })} />}
       {page.kind === "submolt" && <SubmoltView api={api} name={page.name} onOpenPost={(id) => setRoute({ kind: "post", id })} />}
       {page.kind === "post" && <PostView api={api} postId={page.id} />}
-      {page.kind === "compose" && <Compose api={api} onDone={() => setRoute({ kind: "feed" })} />}
+      {page.kind === "compose" && (
+        <Compose
+          api={api}
+          {...(page.submolt ? { initialSubmolt: page.submolt } : {})}
+          onDone={() => setRoute({ kind: "feed" })}
+        />
+      )}
 
       <footer style={{ marginTop: 24, fontSize: 12, opacity: 0.8 }}>
         <div>Moltpostor is a static client. Your API key is stored in this browser only.</div>
