@@ -26,7 +26,9 @@ export class MoltbookHttpClient {
   constructor(opts: HttpClientOptions) {
     this.baseUrl = opts.baseUrl.replace(/\/+$/, "");
     this.getApiKey = opts.getApiKey;
-    this.timeoutMs = opts.timeoutMs ?? 15_000;
+    // Be conservative: Moltbook endpoints (notably search) can be slow under load.
+    // Also ensure we surface a useful error message (not a generic abort string).
+    this.timeoutMs = opts.timeoutMs ?? 45_000;
   }
 
   private async request(path: string, init: RequestInit): Promise<Response> {
@@ -38,9 +40,19 @@ export class MoltbookHttpClient {
     if (apiKey) headers.set("Authorization", `Bearer ${apiKey}`);
 
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), this.timeoutMs);
+    let timedOut = false;
+    const timeoutErr = new Error(`Request timed out after ${this.timeoutMs}ms`);
+    const timer = setTimeout(() => {
+      timedOut = true;
+      // When supported, the abort reason becomes the fetch rejection reason.
+      controller.abort(timeoutErr);
+    }, this.timeoutMs);
     try {
       return await fetch(url, { ...init, headers, signal: controller.signal });
+    } catch (e: any) {
+      // Some browsers ignore the abort reason and produce an unhelpful error message.
+      if (timedOut) throw timeoutErr;
+      throw e;
     } finally {
       clearTimeout(timer);
     }
