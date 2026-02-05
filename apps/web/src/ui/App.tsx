@@ -7,6 +7,7 @@ import { SubmoltView } from "./SubmoltView";
 import { PostView } from "./PostView";
 import { Compose } from "./Compose";
 import { UserProfile } from "./UserProfile";
+import { Search } from "./Search";
 import { useStoredApiKey } from "./useStoredApiKey";
 
 type Page =
@@ -15,6 +16,7 @@ type Page =
   | { kind: "submolt"; name: string }
   | { kind: "post"; id: string }
   | { kind: "user"; name: string }
+  | { kind: "search"; q: string }
   | { kind: "compose"; submolt?: string }
   | { kind: "login" };
 
@@ -30,6 +32,7 @@ function parseRoute(hash: string): Page {
   if (parts.length === 0) return { kind: "feed" };
   if (parts[0] === "feed") return { kind: "feed" };
   if (parts[0] === "submolts") return { kind: "submolts" };
+  if (parts[0] === "search") return { kind: "search", q: params.get("q")?.trim() ?? "" };
   if (parts[0] === "compose") {
     const submolt = params.get("submolt")?.trim() || undefined;
     return submolt ? { kind: "compose", submolt } : { kind: "compose" };
@@ -50,6 +53,9 @@ function setRoute(page: Page) {
       return;
     case "submolts":
       window.location.hash = "#/submolts";
+      return;
+    case "search":
+      window.location.hash = page.q ? `#/search?q=${encodeURIComponent(page.q)}` : "#/search";
       return;
     case "submolt":
       window.location.hash = `#/m/${encodeURIComponent(page.name)}`;
@@ -111,6 +117,7 @@ export function App() {
         <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
           <button onClick={() => setRoute({ kind: "feed" })}>Feed</button>
           <button onClick={() => setRoute({ kind: "submolts" })}>Submolts</button>
+          <button onClick={() => setRoute({ kind: "search", q: "" })}>Search</button>
           <button
             onClick={() => {
               if (page.kind === "submolt") setRoute({ kind: "compose", submolt: page.name });
@@ -162,6 +169,16 @@ export function App() {
       {page.kind === "post" && <PostView api={api} postId={page.id} />}
       {page.kind === "user" && (
         <UserProfile api={api} name={page.name} onOpenPost={(id) => setRoute({ kind: "post", id })} onOpenSubmolt={(name) => setRoute({ kind: "submolt", name })} />
+      )}
+      {page.kind === "search" && (
+        <Search
+          api={api}
+          initialQuery={page.q}
+          onSetQuery={(q) => setRoute({ kind: "search", q })}
+          onOpenPost={(id) => setRoute({ kind: "post", id })}
+          onOpenSubmolt={(name) => setRoute({ kind: "submolt", name })}
+          onOpenUser={(name) => setRoute({ kind: "user", name })}
+        />
       )}
       {page.kind === "compose" && (
         <Compose

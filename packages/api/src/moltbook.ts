@@ -65,4 +65,11 @@ export class MoltbookApi {
   upvoteComment(commentId: string) {
     return this.http.postJson<any>(`/comments/${encodeURIComponent(commentId)}/upvote`);
   }
+
+  // Search
+  search(query: string, options: { limit?: number } = {}) {
+    const q = query.trim();
+    const limit = options.limit ?? 25;
+    return this.http.getJson<any>(`/search?q=${encodeURIComponent(q)}&limit=${encodeURIComponent(String(limit))}`);
+  }
 }
