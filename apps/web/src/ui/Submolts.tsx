@@ -12,7 +12,7 @@ function createErrorMessage(e: unknown): string {
   if (e instanceof HttpError) {
     if (e.status === 401 || e.status === 403) return `Not authorized (HTTP ${e.status}). Import an API key first.`;
     if (e.status === 409) return `That submolt name is already taken (HTTP 409).`;
-    if (e.status === 400) return `Invalid submolt fields (HTTP 400). Try letters/numbers in the name and a shorter description.`;
+    if (e.status === 400) return `Invalid submolt fields (HTTP 400). Name, display name, and description are required.`;
     return `Create failed (HTTP ${e.status}). ${e.bodyText || ""}`.trim();
   }
   return (e instanceof Error ? e.message : String(e)) || "Create failed.";
@@ -71,7 +71,7 @@ export function Submolts(props: { api: MoltbookApi; isAuthed: boolean }) {
               />
             </label>
             <label>
-              Display name (optional)
+              Display name (required)
               <input
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
@@ -81,7 +81,7 @@ export function Submolts(props: { api: MoltbookApi; isAuthed: boolean }) {
               />
             </label>
             <label>
-              Description (optional)
+              Description (required)
               <textarea
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
@@ -96,14 +96,12 @@ export function Submolts(props: { api: MoltbookApi; isAuthed: boolean }) {
                 onClick={async () => {
                   setCreateError(null);
                   const n = name.trim();
-                  if (!n) return;
+                  const dn = displayName.trim();
+                  const d = description.trim();
+                  if (!n || !dn || !d) return;
                   setBusy(true);
                   try {
-                    const payload: { name: string; display_name?: string; description?: string } = { name: n };
-                    const dn = displayName.trim();
-                    const d = description.trim();
-                    if (dn) payload.display_name = dn;
-                    if (d) payload.description = d;
+                    const payload = { name: n, display_name: dn, description: d };
                     await props.api.createSubmolt(payload);
                     setName("");
                     setDisplayName("");
@@ -118,7 +116,7 @@ export function Submolts(props: { api: MoltbookApi; isAuthed: boolean }) {
                     setBusy(false);
                   }
                 }}
-                disabled={busy || !name.trim()}
+                disabled={busy || !name.trim() || !displayName.trim() || !description.trim()}
               >
                 Create
               </button>
