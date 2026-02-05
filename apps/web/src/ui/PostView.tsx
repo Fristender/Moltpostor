@@ -1,6 +1,35 @@
 import React, { useEffect, useRef, useState } from "react";
 import type { MoltbookApi } from "@moltpostor/api";
 
+type Vote = null | "up" | "down";
+
+function postVoteKey(postId: string) {
+  return `moltpostor.vote.post.v1.${postId}`;
+}
+
+function commentVoteKey(commentId: string) {
+  return `moltpostor.vote.comment.v1.${commentId}`;
+}
+
+function readVote(key: string): Vote {
+  try {
+    const v = localStorage.getItem(key);
+    if (v === "up" || v === "down") return v;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function writeVote(key: string, vote: Vote) {
+  try {
+    if (vote) localStorage.setItem(key, vote);
+    else localStorage.removeItem(key);
+  } catch {
+    // ignore (private mode, storage disabled, etc.)
+  }
+}
+
 export function PostView(props: { api: MoltbookApi; postId: string }) {
   const [post, setPost] = useState<any | null>(null);
   const [comments, setComments] = useState<any[] | null>(null);
@@ -10,7 +39,7 @@ export function PostView(props: { api: MoltbookApi; postId: string }) {
   const [commentVotePending, setCommentVotePending] = useState<Record<string, true>>({});
   // Client-side vote state (API doesn't currently expose "my vote" in our models).
   // We assume Moltbook vote endpoints toggle.
-  const [postMyVote, setPostMyVote] = useState<null | "up" | "down">(null);
+  const [postMyVote, setPostMyVote] = useState<Vote>(null);
   const [commentMyVote, setCommentMyVote] = useState<Record<string, "up">>({});
 
   const reloadSeqRef = useRef(0);
@@ -42,8 +71,8 @@ export function PostView(props: { api: MoltbookApi; postId: string }) {
   }
 
   useEffect(() => {
-    // When navigating to a new post, reset local vote state.
-    setPostMyVote(null);
+    // When navigating to a new post, seed local vote state from storage.
+    setPostMyVote(readVote(postVoteKey(props.postId)));
     setCommentMyVote({});
     // Cancel any scheduled reconcile from the previous post.
     if (reconcileTimerRef.current !== null) {
@@ -53,6 +82,19 @@ export function PostView(props: { api: MoltbookApi; postId: string }) {
     void reload();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [props.postId]);
+
+  useEffect(() => {
+    // Whenever a new comment list comes in, hydrate known per-comment vote state.
+    if (!comments) return;
+    const next: Record<string, "up"> = {};
+    for (const c of comments) {
+      const id = String(c?.id ?? "");
+      if (!id) continue;
+      const v = readVote(commentVoteKey(id));
+      if (v === "up") next[id] = "up";
+    }
+    setCommentMyVote(next);
+  }, [comments]);
 
   if (error) return <div style={{ color: "crimson" }}>{error}</div>;
   if (!post) return <div>Loading…</div>;
@@ -92,12 +134,14 @@ export function PostView(props: { api: MoltbookApi; postId: string }) {
               return { ...p, upvotes: up + 1 }; // add upvote
             });
             setPostMyVote((v) => (v === "up" ? null : "up"));
+            writeVote(postVoteKey(props.postId), prevMyVote === "up" ? null : "up");
 
             props.api
               .upvotePost(props.postId)
               .catch((e) => {
                 setPost(prevPost);
                 setPostMyVote(prevMyVote);
+                writeVote(postVoteKey(props.postId), prevMyVote);
                 setError(String(e?.message ?? e));
               })
               .finally(() => {
@@ -126,12 +170,14 @@ export function PostView(props: { api: MoltbookApi; postId: string }) {
               return { ...p, downvotes: down + 1 }; // add downvote
             });
             setPostMyVote((v) => (v === "down" ? null : "down"));
+            writeVote(postVoteKey(props.postId), prevMyVote === "down" ? null : "down");
 
             props.api
               .downvotePost(props.postId)
               .catch((e) => {
                 setPost(prevPost);
                 setPostMyVote(prevMyVote);
+                writeVote(postVoteKey(props.postId), prevMyVote);
                 setError(String(e?.message ?? e));
               })
               .finally(() => {
@@ -210,6 +256,7 @@ export function PostView(props: { api: MoltbookApi; postId: string }) {
                       else next[id] = "up";
                       return next;
                     });
+                    writeVote(commentVoteKey(id), prevMyVote === "up" ? null : "up");
 
                     props.api
                       .upvoteComment(id)
@@ -221,6 +268,7 @@ export function PostView(props: { api: MoltbookApi; postId: string }) {
                           else delete next[id];
                           return next;
                         });
+                        writeVote(commentVoteKey(id), prevMyVote === "up" ? "up" : null);
                         setError(String(e?.message ?? e));
                       })
                       .finally(() => {
