@@ -158,7 +158,7 @@ export function App() {
         <Compose
           api={api}
           {...(page.submolt ? { initialSubmolt: page.submolt } : {})}
-          onDone={() => setRoute({ kind: "feed" })}
+          onCreated={(postId) => setRoute({ kind: "post", id: postId })}
         />
       )}
 

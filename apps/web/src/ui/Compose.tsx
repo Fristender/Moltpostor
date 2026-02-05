@@ -1,7 +1,12 @@
 import React, { useEffect, useRef, useState } from "react";
 import { HttpError, type MoltbookApi } from "@moltpostor/api";
 
-export function Compose(props: { api: MoltbookApi; onDone: () => void; initialSubmolt?: string }) {
+function extractPostId(res: any): string | null {
+  const id = res?.post?.id ?? res?.id ?? res?.post_id ?? null;
+  return id ? String(id) : null;
+}
+
+export function Compose(props: { api: MoltbookApi; onCreated: (postId: string) => void; initialSubmolt?: string }) {
   const [submolt, setSubmolt] = useState("");
   const [title, setTitle] = useState("");
   const [url, setUrl] = useState("");
@@ -65,8 +70,10 @@ export function Compose(props: { api: MoltbookApi; onDone: () => void; initialSu
             if (u) payload.url = u;
             if (c) payload.content = c;
 
-            await props.api.createPost(payload);
-            props.onDone();
+            const res = await props.api.createPost(payload);
+            const postId = extractPostId(res);
+            if (postId) props.onCreated(postId);
+            else setError({ user: "Post created but no post id returned by API.", debug: JSON.stringify(res, null, 2) });
           } catch (e: any) {
             if (e instanceof HttpError) {
               // Common case: posting to a submolt that doesn't exist.
