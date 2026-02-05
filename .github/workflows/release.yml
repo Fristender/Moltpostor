@@ -195,8 +195,26 @@ jobs:
       - name: Install JS deps
         run: npm ci
 
-      - name: Decode keystore (optional)
-        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+      - name: Require Android signing secrets
+        shell: bash
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          missing=0
+          for k in ANDROID_KEYSTORE_BASE64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD; do
+            if [ -z "${!k}" ]; then
+              echo "::error::Missing required secret: $k"
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then
+            exit 1
+          fi
+
+      - name: Decode keystore
         shell: bash
         run: |
           mkdir -p apps/desktop/src-tauri/gen/android/app
@@ -235,7 +253,6 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.meta.outputs.release_tag }}
-          target_commitish: ${{ github.sha }}
           name: Moltpostor ${{ needs.meta.outputs.release_tag }}
           prerelease: ${{ needs.meta.outputs.prerelease == 'true' }}
           generate_release_notes: true
