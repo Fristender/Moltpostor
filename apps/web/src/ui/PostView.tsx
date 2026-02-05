@@ -37,6 +37,7 @@ export function PostView(props: { api: MoltbookApi; postId: string }) {
   const [comment, setComment] = useState("");
   const [postVotePending, setPostVotePending] = useState<null | "up" | "down">(null);
   const [commentVotePending, setCommentVotePending] = useState<Record<string, true>>({});
+
   // Client-side vote state (API doesn't currently expose "my vote" in our models).
   // We assume Moltbook vote endpoints toggle.
   const [postMyVote, setPostMyVote] = useState<Vote>(null);
@@ -97,32 +98,38 @@ export function PostView(props: { api: MoltbookApi; postId: string }) {
   }, [comments]);
 
   if (error) return <div style={{ color: "crimson" }}>{error}</div>;
-  if (!post) return <div>Loading…</div>;
+  if (!post) return <div>Loading...</div>;
 
   const score = (post.upvotes ?? 0) - (post.downvotes ?? 0);
+  const postAuthorName = post.author ? String(post.author.name ?? post.author) : "";
+  const postSubmoltName = post.submolt ? String(post.submolt.name ?? post.submolt) : "";
 
   return (
     <section>
       <h2>{String(post.title ?? "")}</h2>
       <div style={{ fontSize: 12, opacity: 0.75 }}>
-        {post.submolt ? (
+        {postSubmoltName ? (
           <>
             <a
-              href={`#/m/${encodeURIComponent(String(post.submolt.name ?? post.submolt))}`}
+              href={`#/m/${encodeURIComponent(postSubmoltName)}`}
               onClick={(e) => {
                 e.preventDefault();
-                window.location.hash = `#/m/${encodeURIComponent(String(post.submolt.name ?? post.submolt))}`;
+                window.location.hash = `#/m/${encodeURIComponent(postSubmoltName)}`;
               }}
             >
-              m/{String(post.submolt.name ?? post.submolt)}
+              m/{postSubmoltName}
             </a>
           </>
-        ) : (
-          ""
-        )}{" "}
-        {post.author ? ` · u/${post.author.name ?? post.author}` : ""}{" "}
-        {post.created_at ? ` · ${post.created_at}` : ""} · score {score}
+        ) : null}
+        {postAuthorName ? (
+          <>
+            {" - "}
+            <a href={`#/u/${encodeURIComponent(postAuthorName)}`}>u/{postAuthorName}</a>
+          </>
+        ) : null}
+        {post.created_at ? ` - ${post.created_at}` : ""} - score {score}
       </div>
+
       {post.url && (
         <div style={{ marginTop: 8 }}>
           <a href={String(post.url)} target="_blank" rel="noreferrer noopener">
@@ -161,7 +168,6 @@ export function PostView(props: { api: MoltbookApi; postId: string }) {
               })
               .finally(() => {
                 setPostVotePending(null);
-                // Reconcile with server truth after user stops clicking.
                 scheduleReconcile();
               });
           }}
@@ -239,11 +245,14 @@ export function PostView(props: { api: MoltbookApi; postId: string }) {
           const score = (c.upvotes ?? 0) - (c.downvotes ?? 0);
           const votePending = !!commentVotePending[id];
           const myVote = commentMyVote[id] ?? null;
+          const commentAuthorName = c.author ? String(c.author.name ?? c.author) : "";
+
           return (
             <article key={id} style={{ border: "1px solid #ddd", borderRadius: 8, padding: 12 }}>
               <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
                 <div style={{ fontSize: 12, opacity: 0.75 }}>
-                  {c.author ? `u/${c.author.name ?? c.author}` : ""} {c.created_at ? ` · ${c.created_at}` : ""}
+                  {commentAuthorName ? <a href={`#/u/${encodeURIComponent(commentAuthorName)}`}>u/{commentAuthorName}</a> : ""}{" "}
+                  {c.created_at ? `- ${c.created_at}` : ""}
                 </div>
                 <div>score {score}</div>
               </div>
@@ -307,3 +316,4 @@ export function PostView(props: { api: MoltbookApi; postId: string }) {
     </section>
   );
 }
+

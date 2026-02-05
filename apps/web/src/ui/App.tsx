@@ -6,6 +6,7 @@ import { Submolts } from "./Submolts";
 import { SubmoltView } from "./SubmoltView";
 import { PostView } from "./PostView";
 import { Compose } from "./Compose";
+import { UserProfile } from "./UserProfile";
 import { useStoredApiKey } from "./useStoredApiKey";
 
 type Page =
@@ -13,6 +14,7 @@ type Page =
   | { kind: "submolts" }
   | { kind: "submolt"; name: string }
   | { kind: "post"; id: string }
+  | { kind: "user"; name: string }
   | { kind: "compose"; submolt?: string }
   | { kind: "login" };
 
@@ -34,6 +36,7 @@ function parseRoute(hash: string): Page {
   }
   if (parts[0] === "login") return { kind: "login" };
   if (parts[0] === "post" && parts[1]) return { kind: "post", id: decodeURIComponent(parts[1]) };
+  if (parts[0] === "u" && parts[1]) return { kind: "user", name: decodeURIComponent(parts[1]) };
   // Use /m/:name to mirror Moltbook's URLs.
   if (parts[0] === "m" && parts[1]) return { kind: "submolt", name: decodeURIComponent(parts[1]) };
 
@@ -61,6 +64,9 @@ function setRoute(page: Page) {
       return;
     case "post":
       window.location.hash = `#/post/${encodeURIComponent(page.id)}`;
+      return;
+    case "user":
+      window.location.hash = `#/u/${encodeURIComponent(page.name)}`;
       return;
   }
 }
@@ -154,6 +160,9 @@ export function App() {
       {page.kind === "submolts" && <Submolts api={api} isAuthed={!!apiKey} onOpenSubmolt={(name) => setRoute({ kind: "submolt", name })} />}
       {page.kind === "submolt" && <SubmoltView api={api} name={page.name} onOpenPost={(id) => setRoute({ kind: "post", id })} />}
       {page.kind === "post" && <PostView api={api} postId={page.id} />}
+      {page.kind === "user" && (
+        <UserProfile api={api} name={page.name} onOpenPost={(id) => setRoute({ kind: "post", id })} onOpenSubmolt={(name) => setRoute({ kind: "submolt", name })} />
+      )}
       {page.kind === "compose" && (
         <Compose
           api={api}

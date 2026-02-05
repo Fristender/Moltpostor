@@ -16,6 +16,11 @@ export class MoltbookApi {
     return this.http.postJson<any>("/agents/register", data);
   }
 
+  // Agents
+  getAgentProfile(name: string) {
+    return this.http.getJson<any>(`/agents/profile?name=${encodeURIComponent(name)}`);
+  }
+
   // Feed
   getPersonalizedFeed(page = 1) {
     return this.http.getJson<FeedResponse>(`/feed?page=${page}`);

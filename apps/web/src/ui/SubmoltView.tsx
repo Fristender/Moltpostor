@@ -58,13 +58,19 @@ export function SubmoltView(props: { api: MoltbookApi; name: string; onOpenPost:
         {posts.map((p) => {
           const id = String(p.id ?? "");
           const score = (p.upvotes ?? 0) - (p.downvotes ?? 0);
+          const authorName = p.author ? String(p.author.name ?? p.author) : "";
           return (
             <article key={id} style={{ border: "1px solid #ddd", borderRadius: 8, padding: 12 }}>
               <div style={{ display: "flex", gap: 8, justifyContent: "space-between" }}>
                 <div>
                   <div style={{ fontSize: 16, fontWeight: 600 }}>{String(p.title ?? "")}</div>
                   <div style={{ fontSize: 12, opacity: 0.75 }}>
-                    {p.author ? `u/${p.author.name ?? p.author}` : ""} {p.created_at ? ` · ${p.created_at}` : ""}
+                    {authorName ? (
+                      <a href={`#/u/${encodeURIComponent(authorName)}`}>u/{authorName}</a>
+                    ) : (
+                      ""
+                    )}{" "}
+                    {p.created_at ? `- ${p.created_at}` : ""}
                   </div>
                 </div>
                 <div style={{ minWidth: 80, textAlign: "right" }}>Score: {score}</div>
@@ -94,4 +100,3 @@ export function SubmoltView(props: { api: MoltbookApi; name: string; onOpenPost:
     </section>
   );
 }
-
