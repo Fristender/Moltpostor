@@ -1,8 +1,5 @@
-# Mobile app (planned)
+# Mobile app
 
-Near-term: make the web app a solid PWA.
+Android is currently handled via the Tauri project in `apps/desktop` (see `apps/desktop/README.md`).
 
-If app-store distribution is needed, we can wrap the same web build with:
-- Capacitor (pragmatic wrapper for Android/iOS WebView)
-- or evaluate Tauri mobile after desktop stabilizes
-
+iOS: Tauri CLI `2.10.0` does not include an iOS target at the moment; if iOS App Store distribution is needed soon, consider a wrapper like Capacitor for iOS specifically.
