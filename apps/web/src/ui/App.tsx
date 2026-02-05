@@ -57,6 +57,7 @@ export function App() {
 
       {page.kind === "login" && (
         <Login
+          api={api}
           onSetKey={(k) => {
             setApiKey(k);
             setPage({ kind: "feed" });
@@ -74,4 +75,3 @@ export function App() {
     </div>
   );
 }
-

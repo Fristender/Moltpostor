@@ -11,6 +11,11 @@ export class MoltbookApi {
     this.http = http;
   }
 
+  // Auth / registration (no API key required)
+  registerAgent(data: { name: string; description: string }) {
+    return this.http.postJson<any>("/agents/register", data);
+  }
+
   // Feed
   getPersonalizedFeed(page = 1) {
     return this.http.getJson<FeedResponse>(`/feed?page=${page}`);
@@ -53,4 +58,3 @@ export class MoltbookApi {
     return this.http.postJson<any>(`/comments/${encodeURIComponent(commentId)}/upvote`);
   }
 }
-
