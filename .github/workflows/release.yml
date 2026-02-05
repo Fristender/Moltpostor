@@ -255,6 +255,21 @@ jobs:
           keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}
           EOF
 
+      - name: Verify keystore contains alias
+        shell: bash
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          set -euo pipefail
+          ks="apps/desktop/src-tauri/gen/android/app/upload-keystore.jks"
+          echo "Listing aliases in keystore (for troubleshooting)..."
+          keytool -list -keystore "$ks" -storepass "$ANDROID_KEYSTORE_PASSWORD" | tee /tmp/keystore-aliases.txt
+          if ! grep -qiE "(^|\\s)${ANDROID_KEY_ALIAS}(\\s|,|$)" /tmp/keystore-aliases.txt; then
+            echo "::error::No key with alias '${ANDROID_KEY_ALIAS}' found in keystore. Update ANDROID_KEY_ALIAS to match one of the aliases listed above."
+            exit 1
+          fi
+
       - name: Build Android (release)
         run: npm run android:build -w @moltpostor/desktop
 
