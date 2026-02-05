@@ -98,12 +98,6 @@ export function PostView(props: { api: MoltbookApi; postId: string }) {
                 >
                   Upvote
                 </button>
-                <button
-                  onClick={() => props.api.downvoteComment(id).then(reload).catch((e) => setError(String(e?.message ?? e)))}
-                  disabled={!id}
-                >
-                  Downvote
-                </button>
               </div>
             </article>
           );

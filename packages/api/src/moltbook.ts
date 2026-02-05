@@ -57,9 +57,4 @@ export class MoltbookApi {
   upvoteComment(commentId: string) {
     return this.http.postJson<any>(`/comments/${encodeURIComponent(commentId)}/upvote`);
   }
-
-  // Not documented in all Moltbook docs, but we support it if the server exposes it.
-  downvoteComment(commentId: string) {
-    return this.http.postJson<any>(`/comments/${encodeURIComponent(commentId)}/downvote`);
-  }
 }
