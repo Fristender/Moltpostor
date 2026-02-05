@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { HttpError, type MoltbookApi } from "@moltpostor/api";
+import { debugTextFromError } from "./errors";
 
 type Mode = "import" | "register";
 
@@ -26,15 +27,6 @@ function registerErrorReasons(status: number): string[] {
     default:
       return ["The server rejected the request.", "Your network/extension may be interfering with the request."];
   }
-}
-
-function debugTextFromError(e: unknown): string {
-  if (e instanceof HttpError) {
-    const body = e.bodyText ? e.bodyText.slice(0, 10_000) : "(empty body)";
-    return `HttpError: ${e.message}\nstatus=${e.status}\nbody=${body}`;
-  }
-  if (e instanceof Error) return `${e.name}: ${e.message}`;
-  return String(e);
 }
 
 export function Login(props: { api: MoltbookApi; onSetKey: (k: string) => void }) {

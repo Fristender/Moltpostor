@@ -1,9 +1,55 @@
 import React, { useEffect, useRef, useState } from "react";
 import { HttpError, type MoltbookApi } from "@moltpostor/api";
+import { debugTextFromError, parseJsonBody } from "./errors";
 
 function extractPostId(res: any): string | null {
   const id = res?.post?.id ?? res?.id ?? res?.post_id ?? null;
   return id ? String(id) : null;
+}
+
+function postErrorReasons(status: number, hasSubmolt: boolean): string[] {
+  switch (status) {
+    case 400:
+      return [
+        "Title/content/URL fields are invalid.",
+        ...(hasSubmolt ? ["Submolt name format is invalid."] : []),
+      ];
+    case 401:
+    case 403:
+      return ["Your API key is missing/invalid, or you don't have permission for this action."];
+    case 404:
+      return hasSubmolt ? ["The submolt doesn't exist."] : ["The resource doesn't exist."];
+    case 429:
+      return ["You are rate-limited. Wait and try again."];
+    default:
+      return [];
+  }
+}
+
+function postErrorUserMessage(err: HttpError, submoltName: string | null): string {
+  const body = parseJsonBody(err.bodyText);
+  const serverError = typeof body?.error === "string" ? body.error : null;
+  const hint = typeof body?.hint === "string" ? body.hint : null;
+  const retryMinutes = typeof body?.retry_after_minutes === "number" ? body.retry_after_minutes : null;
+  const retrySeconds = typeof body?.retry_after_seconds === "number" ? body.retry_after_seconds : null;
+
+  if (err.status === 404 && submoltName) {
+    return `Submolt "${submoltName}" doesn't exist (HTTP 404). Create it first or pick an existing submolt.`;
+  }
+
+  if (err.status === 429) {
+    const wait =
+      hint ??
+      (retryMinutes !== null ? `Wait ${retryMinutes} minute(s) before posting again.` : null) ??
+      (retrySeconds !== null ? `Wait ${retrySeconds} second(s) before posting again.` : null);
+    return `You're rate-limited (HTTP 429).${wait ? ` ${wait}` : ""}`;
+  }
+
+  const reasons = postErrorReasons(err.status, !!submoltName);
+  const reasonText = reasons.length ? `\nPossible reasons:\n${reasons.map((r) => `- ${r}`).join("\n")}` : "";
+  const serverText = serverError ? `\nServer error: ${serverError}` : "";
+  const hintText = hint ? `\nHint: ${hint}` : "";
+  return `Failed to create post (HTTP ${err.status}).${serverText}${hintText}${reasonText}`;
 }
 
 export function Compose(props: { api: MoltbookApi; onCreated: (postId: string) => void; initialSubmolt?: string }) {
@@ -76,21 +122,13 @@ export function Compose(props: { api: MoltbookApi; onCreated: (postId: string) =
             else setError({ user: "Post created but no post id returned by API.", debug: JSON.stringify(res, null, 2) });
           } catch (e: any) {
             if (e instanceof HttpError) {
-              // Common case: posting to a submolt that doesn't exist.
-              if (e.status === 404 && submolt.trim()) {
-                setError({
-                  user: `Submolt "${submolt.trim()}" doesn't exist (HTTP 404). Create it first or pick an existing submolt.`,
-                  debug: `HttpError: ${e.message}\nstatus=${e.status}\nbody=${e.bodyText || "(empty body)"}`,
-                });
-                return;
-              }
               setError({
-                user: `Failed to create post (HTTP ${e.status}).`,
-                debug: `HttpError: ${e.message}\nstatus=${e.status}\nbody=${e.bodyText || "(empty body)"}`,
+                user: postErrorUserMessage(e, submolt.trim() || null),
+                debug: debugTextFromError(e),
               });
               return;
             }
-            setError({ user: "Failed to create post.", debug: e?.message ?? String(e) });
+            setError({ user: "Failed to create post.", debug: debugTextFromError(e) });
           } finally {
             setBusy(false);
           }
