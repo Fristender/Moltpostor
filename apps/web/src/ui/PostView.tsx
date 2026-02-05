@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import type { MoltbookApi } from "@moltpostor/api";
 
 export function PostView(props: { api: MoltbookApi; postId: string }) {
@@ -13,15 +13,30 @@ export function PostView(props: { api: MoltbookApi; postId: string }) {
   const [postMyVote, setPostMyVote] = useState<null | "up" | "down">(null);
   const [commentMyVote, setCommentMyVote] = useState<Record<string, "up">>({});
 
+  const reloadSeqRef = useRef(0);
+  const reconcileTimerRef = useRef<number | null>(null);
+
+  function scheduleReconcile() {
+    // Coalesce multiple vote completions into one reload, and ignore stale reloads.
+    if (reconcileTimerRef.current !== null) window.clearTimeout(reconcileTimerRef.current);
+    reconcileTimerRef.current = window.setTimeout(() => {
+      reconcileTimerRef.current = null;
+      void reload();
+    }, 400);
+  }
+
   async function reload() {
-    setError(null);
+    const seq = ++reloadSeqRef.current;
     try {
       const p = await props.api.getPost(props.postId);
       const c = await props.api.getComments(props.postId);
+      if (seq !== reloadSeqRef.current) return;
+      setError(null);
       setPost(p.post ?? p);
       const list = Array.isArray(c) ? c : (c.comments ?? c ?? []);
       setComments(list);
     } catch (e: any) {
+      if (seq !== reloadSeqRef.current) return;
       setError(e?.message ?? String(e));
     }
   }
@@ -30,6 +45,11 @@ export function PostView(props: { api: MoltbookApi; postId: string }) {
     // When navigating to a new post, reset local vote state.
     setPostMyVote(null);
     setCommentMyVote({});
+    // Cancel any scheduled reconcile from the previous post.
+    if (reconcileTimerRef.current !== null) {
+      window.clearTimeout(reconcileTimerRef.current);
+      reconcileTimerRef.current = null;
+    }
     void reload();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [props.postId]);
@@ -82,8 +102,8 @@ export function PostView(props: { api: MoltbookApi; postId: string }) {
               })
               .finally(() => {
                 setPostVotePending(null);
-                // Reconcile with server truth (in case the endpoint isn't a pure toggle).
-                void reload();
+                // Reconcile with server truth after user stops clicking.
+                scheduleReconcile();
               });
           }}
           disabled={postVotePending !== null}
@@ -116,7 +136,7 @@ export function PostView(props: { api: MoltbookApi; postId: string }) {
               })
               .finally(() => {
                 setPostVotePending(null);
-                void reload();
+                scheduleReconcile();
               });
           }}
           disabled={postVotePending !== null}
@@ -209,7 +229,7 @@ export function PostView(props: { api: MoltbookApi; postId: string }) {
                           delete next[id];
                           return next;
                         });
-                        void reload();
+                        scheduleReconcile();
                       });
                   }}
                   disabled={!id || votePending}
