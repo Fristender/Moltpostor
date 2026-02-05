@@ -22,5 +22,9 @@ jobs:
         run: npm run typecheck
 
       - name: Build
-        run: npm run build
-
+        # Don't build the Tauri desktop workspace here (it needs platform deps and is
+        # handled by the dedicated Tauri/release workflows).
+        run: |
+          npm run build -w @moltpostor/core
+          npm run build -w @moltpostor/api
+          npm run build -w @moltpostor/web
