@@ -91,9 +91,20 @@ export function PostView(props: { api: MoltbookApi; postId: string }) {
                 <div>score {score}</div>
               </div>
               <pre style={{ whiteSpace: "pre-wrap" }}>{String(c.content ?? "")}</pre>
-              <button onClick={() => props.api.upvoteComment(id).then(reload).catch((e) => setError(String(e?.message ?? e)))} disabled={!id}>
-                Upvote
-              </button>
+              <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                <button
+                  onClick={() => props.api.upvoteComment(id).then(reload).catch((e) => setError(String(e?.message ?? e)))}
+                  disabled={!id}
+                >
+                  Upvote
+                </button>
+                <button
+                  onClick={() => props.api.downvoteComment(id).then(reload).catch((e) => setError(String(e?.message ?? e)))}
+                  disabled={!id}
+                >
+                  Downvote
+                </button>
+              </div>
             </article>
           );
         })}
@@ -101,4 +112,3 @@ export function PostView(props: { api: MoltbookApi; postId: string }) {
     </section>
   );
 }
-
