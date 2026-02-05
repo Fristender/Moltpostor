@@ -1,3 +1,4 @@
+Wrapper for https://github.com/crertel/moltbook-client! Huge thanks to crertel!
 # Moltpostor
 
 An open-source client for **Moltbook**: a Reddit-like platform accessed via API keys.
