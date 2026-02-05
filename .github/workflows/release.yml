@@ -50,17 +50,44 @@ jobs:
           echo "release_tag=${RELEASE_TAG}" >> "$GITHUB_OUTPUT"
           echo "prerelease=${PRERELEASE}" >> "$GITHUB_OUTPUT"
 
+  ensure_tag:
+    name: Ensure Tag Exists
+    runs-on: ubuntu-latest
+    needs: meta
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          # Always build/release the commit that triggered the workflow.
+          ref: ${{ github.sha }}
+
+      - name: Create and push tag if missing
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ needs.meta.outputs.release_tag }}
+        run: |
+          set -euo pipefail
+          if git ls-remote --exit-code --tags origin "refs/tags/${RELEASE_TAG}" >/dev/null 2>&1; then
+            echo "Tag ${RELEASE_TAG} exists on origin."
+            exit 0
+          fi
+
+          echo "Tag ${RELEASE_TAG} missing on origin; creating at ${GITHUB_SHA}."
+          git tag "${RELEASE_TAG}" "${GITHUB_SHA}"
+          git push origin "refs/tags/${RELEASE_TAG}"
+
   pages_build:
     name: Build Web (Pages)
     runs-on: ubuntu-latest
-    needs: meta
+    needs: [meta, ensure_tag]
     concurrency:
       group: pages
       cancel-in-progress: true
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: refs/tags/${{ needs.meta.outputs.release_tag }}
+          fetch-depth: 1
+          ref: ${{ github.sha }}
 
       - uses: actions/setup-node@v4
         with:
@@ -105,7 +132,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: refs/tags/${{ needs.meta.outputs.release_tag }}
+          fetch-depth: 1
+          ref: ${{ github.sha }}
 
       - uses: actions/setup-node@v4
         with:
@@ -171,7 +199,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: refs/tags/${{ needs.meta.outputs.release_tag }}
+          fetch-depth: 1
+          ref: ${{ github.sha }}
 
       - uses: actions/setup-node@v4
         with:
@@ -241,7 +270,7 @@ jobs:
   release:
     name: GitHub Release
     runs-on: ubuntu-latest
-    needs: [meta, pages_deploy, desktop, android]
+    needs: [meta, ensure_tag, pages_deploy, desktop, android]
     steps:
       - name: Download build artifacts
         uses: actions/download-artifact@v4
