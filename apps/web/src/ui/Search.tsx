@@ -6,6 +6,30 @@ function asArray(x: any): any[] {
   return Array.isArray(x) ? x : [];
 }
 
+function splitSearchResults(data: any): { posts: any[]; agents: any[]; submolts: any[]; comments: any[] } {
+  // Moltbook's /search currently returns either:
+  // - { posts, agents, submolts } (what moltbook-frontend expects), OR
+  // - { results: [{ type: 'post'|'comment'|'agent'|'submolt', ... }], ... } (what the API actually returns today)
+  const posts = asArray(data?.posts);
+  const agents = asArray(data?.agents);
+  const submolts = asArray(data?.submolts);
+  const comments = asArray(data?.comments);
+
+  if (posts.length || agents.length || submolts.length || comments.length) {
+    return { posts, agents, submolts, comments };
+  }
+
+  const results = asArray(data?.results);
+  if (!results.length) return { posts: [], agents: [], submolts: [], comments: [] };
+
+  return {
+    posts: results.filter((r) => r?.type === "post"),
+    agents: results.filter((r) => r?.type === "agent"),
+    submolts: results.filter((r) => r?.type === "submolt"),
+    comments: results.filter((r) => r?.type === "comment"),
+  };
+}
+
 export function Search(props: {
   api: MoltbookApi;
   initialQuery: string;
@@ -55,9 +79,11 @@ export function Search(props: {
     };
   }, [props.api, props.initialQuery]);
 
-  const posts = useMemo(() => asArray(results?.posts), [results]);
-  const agents = useMemo(() => asArray(results?.agents), [results]);
-  const submolts = useMemo(() => asArray(results?.submolts), [results]);
+  const split = useMemo(() => splitSearchResults(results), [results]);
+  const posts = split.posts;
+  const agents = split.agents;
+  const submolts = split.submolts;
+  const comments = split.comments;
 
   return (
     <section>
@@ -86,7 +112,7 @@ export function Search(props: {
           <h3>Posts</h3>
           <div style={{ display: "grid", gap: 12 }}>
             {posts.map((p) => {
-              const id = String(p.id ?? "");
+              const id = String(p.post_id ?? p.id ?? "");
               const title = String(p.title ?? "");
               const subName = p.submolt ? String(p.submolt.name ?? p.submolt) : String(p.submoltName ?? p.submolt ?? "");
               const authorName = p.author ? String(p.author.name ?? p.author) : String(p.authorName ?? "");
@@ -138,6 +164,47 @@ export function Search(props: {
                         Link
                       </a>
                     )}
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        </>
+      ) : null}
+
+      {comments.length > 0 ? (
+        <>
+          <hr />
+          <h3>Comments</h3>
+          <div style={{ display: "grid", gap: 12 }}>
+            {comments.map((c) => {
+              const id = String(c.id ?? "");
+              const postId = String(c.post_id ?? c.postId ?? "");
+              const authorName = c.author ? String(c.author.name ?? c.author) : String(c.authorName ?? "");
+              return (
+                <article key={id || `${postId}-${Math.random()}`} style={{ border: "1px solid #ddd", borderRadius: 8, padding: 12 }}>
+                  <div style={{ fontSize: 12, opacity: 0.75 }}>
+                    {authorName ? (
+                      <>
+                        <a
+                          href={`#/u/${encodeURIComponent(authorName)}`}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            props.onOpenUser(authorName);
+                          }}
+                        >
+                          u/{authorName}
+                        </a>
+                        {" - "}
+                      </>
+                    ) : null}
+                    {c.created_at ? String(c.created_at) : c.createdAt ? String(c.createdAt) : ""}
+                  </div>
+                  {c.content ? <pre style={{ whiteSpace: "pre-wrap" }}>{String(c.content)}</pre> : null}
+                  <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                    <button onClick={() => props.onOpenPost(postId)} disabled={!postId}>
+                      Open post
+                    </button>
                   </div>
                 </article>
               );
@@ -200,10 +267,9 @@ export function Search(props: {
         </>
       ) : null}
 
-      {results && posts.length === 0 && agents.length === 0 && submolts.length === 0 && !loading && !error ? (
+      {results && posts.length === 0 && comments.length === 0 && agents.length === 0 && submolts.length === 0 && !loading && !error ? (
         <div style={{ marginTop: 8, opacity: 0.8 }}>No results.</div>
       ) : null}
     </section>
   );
 }
-
