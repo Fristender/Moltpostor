@@ -6,6 +6,8 @@ export function PostView(props: { api: MoltbookApi; postId: string }) {
   const [comments, setComments] = useState<any[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [comment, setComment] = useState("");
+  const [postVotePending, setPostVotePending] = useState<null | "up" | "down">(null);
+  const [commentVotePending, setCommentVotePending] = useState<Record<string, true>>({});
 
   async function reload() {
     setError(null);
@@ -47,8 +49,42 @@ export function PostView(props: { api: MoltbookApi; postId: string }) {
       {post.content && <pre style={{ whiteSpace: "pre-wrap" }}>{String(post.content)}</pre>}
 
       <div style={{ display: "flex", gap: 8 }}>
-        <button onClick={() => props.api.upvotePost(props.postId).then(reload).catch((e) => setError(String(e?.message ?? e)))}>Upvote</button>
-        <button onClick={() => props.api.downvotePost(props.postId).then(reload).catch((e) => setError(String(e?.message ?? e)))}>Downvote</button>
+        <button
+          onClick={() => {
+            if (postVotePending) return;
+            const prev = post;
+            setPostVotePending("up");
+            setPost((p: any) => (p ? { ...p, upvotes: (p.upvotes ?? 0) + 1 } : p));
+            props.api
+              .upvotePost(props.postId)
+              .catch((e) => {
+                setPost(prev);
+                setError(String(e?.message ?? e));
+              })
+              .finally(() => setPostVotePending(null));
+          }}
+          disabled={postVotePending !== null}
+        >
+          Upvote
+        </button>
+        <button
+          onClick={() => {
+            if (postVotePending) return;
+            const prev = post;
+            setPostVotePending("down");
+            setPost((p: any) => (p ? { ...p, downvotes: (p.downvotes ?? 0) + 1 } : p));
+            props.api
+              .downvotePost(props.postId)
+              .catch((e) => {
+                setPost(prev);
+                setError(String(e?.message ?? e));
+              })
+              .finally(() => setPostVotePending(null));
+          }}
+          disabled={postVotePending !== null}
+        >
+          Downvote
+        </button>
         <a href={`https://www.moltbook.com/post/${encodeURIComponent(props.postId)}`} target="_blank" rel="noreferrer noopener">
           View on Moltbook
         </a>
@@ -82,6 +118,7 @@ export function PostView(props: { api: MoltbookApi; postId: string }) {
         {(comments ?? []).map((c) => {
           const id = String(c.id ?? "");
           const score = (c.upvotes ?? 0) - (c.downvotes ?? 0);
+          const votePending = !!commentVotePending[id];
           return (
             <article key={id} style={{ border: "1px solid #ddd", borderRadius: 8, padding: 12 }}>
               <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
@@ -93,8 +130,29 @@ export function PostView(props: { api: MoltbookApi; postId: string }) {
               <pre style={{ whiteSpace: "pre-wrap" }}>{String(c.content ?? "")}</pre>
               <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
                 <button
-                  onClick={() => props.api.upvoteComment(id).then(reload).catch((e) => setError(String(e?.message ?? e)))}
-                  disabled={!id}
+                  onClick={() => {
+                    if (!id || votePending) return;
+                    const prev = comments;
+                    setCommentVotePending((m) => ({ ...m, [id]: true }));
+                    setComments((list) => {
+                      if (!list) return list;
+                      return list.map((x) => (String(x.id ?? "") === id ? { ...x, upvotes: (x.upvotes ?? 0) + 1 } : x));
+                    });
+                    props.api
+                      .upvoteComment(id)
+                      .catch((e) => {
+                        setComments(prev);
+                        setError(String(e?.message ?? e));
+                      })
+                      .finally(() => {
+                        setCommentVotePending((m) => {
+                          const next = { ...m };
+                          delete next[id];
+                          return next;
+                        });
+                      });
+                  }}
+                  disabled={!id || votePending}
                 >
                   Upvote
                 </button>
