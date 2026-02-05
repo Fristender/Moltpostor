@@ -1,12 +1,12 @@
 import React, { useEffect, useRef, useState } from "react";
-import type { MoltbookApi } from "@moltpostor/api";
+import { HttpError, type MoltbookApi } from "@moltpostor/api";
 
 export function Compose(props: { api: MoltbookApi; onDone: () => void; initialSubmolt?: string }) {
   const [submolt, setSubmolt] = useState("");
   const [title, setTitle] = useState("");
   const [url, setUrl] = useState("");
   const [content, setContent] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<{ user: string; debug?: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const lastInitialRef = useRef<string | undefined>(undefined);
 
@@ -23,7 +23,17 @@ export function Compose(props: { api: MoltbookApi; onDone: () => void; initialSu
   return (
     <section>
       <h2>Create post</h2>
-      {error && <div style={{ color: "crimson" }}>{error}</div>}
+      {error && (
+        <div style={{ color: "crimson" }}>
+          <div>{error.user}</div>
+          {error.debug && (
+            <details style={{ marginTop: 8 }}>
+              <summary style={{ cursor: "pointer" }}>Debug details</summary>
+              <pre style={{ whiteSpace: "pre-wrap" }}>{error.debug}</pre>
+            </details>
+          )}
+        </div>
+      )}
       <label>
         Submolt (optional)
         <input value={submolt} onChange={(e) => setSubmolt(e.target.value)} placeholder="submolt-name" style={{ width: "100%" }} />
@@ -58,7 +68,22 @@ export function Compose(props: { api: MoltbookApi; onDone: () => void; initialSu
             await props.api.createPost(payload);
             props.onDone();
           } catch (e: any) {
-            setError(e?.message ?? String(e));
+            if (e instanceof HttpError) {
+              // Common case: posting to a submolt that doesn't exist.
+              if (e.status === 404 && submolt.trim()) {
+                setError({
+                  user: `Submolt "${submolt.trim()}" doesn't exist (HTTP 404). Create it first or pick an existing submolt.`,
+                  debug: `HttpError: ${e.message}\nstatus=${e.status}\nbody=${e.bodyText || "(empty body)"}`,
+                });
+                return;
+              }
+              setError({
+                user: `Failed to create post (HTTP ${e.status}).`,
+                debug: `HttpError: ${e.message}\nstatus=${e.status}\nbody=${e.bodyText || "(empty body)"}`,
+              });
+              return;
+            }
+            setError({ user: "Failed to create post.", debug: e?.message ?? String(e) });
           } finally {
             setBusy(false);
           }
