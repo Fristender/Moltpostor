@@ -8,6 +8,10 @@ export function PostView(props: { api: MoltbookApi; postId: string }) {
   const [comment, setComment] = useState("");
   const [postVotePending, setPostVotePending] = useState<null | "up" | "down">(null);
   const [commentVotePending, setCommentVotePending] = useState<Record<string, true>>({});
+  // Client-side vote state (API doesn't currently expose "my vote" in our models).
+  // We assume Moltbook vote endpoints toggle.
+  const [postMyVote, setPostMyVote] = useState<null | "up" | "down">(null);
+  const [commentMyVote, setCommentMyVote] = useState<Record<string, "up">>({});
 
   async function reload() {
     setError(null);
@@ -23,6 +27,9 @@ export function PostView(props: { api: MoltbookApi; postId: string }) {
   }
 
   useEffect(() => {
+    // When navigating to a new post, reset local vote state.
+    setPostMyVote(null);
+    setCommentMyVote({});
     void reload();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [props.postId]);
@@ -52,16 +59,32 @@ export function PostView(props: { api: MoltbookApi; postId: string }) {
         <button
           onClick={() => {
             if (postVotePending) return;
-            const prev = post;
+            const prevPost = post;
+            const prevMyVote = postMyVote;
             setPostVotePending("up");
-            setPost((p: any) => (p ? { ...p, upvotes: (p.upvotes ?? 0) + 1 } : p));
+
+            setPost((p: any) => {
+              if (!p) return p;
+              const up = p.upvotes ?? 0;
+              const down = p.downvotes ?? 0;
+              if (prevMyVote === "up") return { ...p, upvotes: up - 1 }; // remove upvote
+              if (prevMyVote === "down") return { ...p, upvotes: up + 1, downvotes: down - 1 }; // switch
+              return { ...p, upvotes: up + 1 }; // add upvote
+            });
+            setPostMyVote((v) => (v === "up" ? null : "up"));
+
             props.api
               .upvotePost(props.postId)
               .catch((e) => {
-                setPost(prev);
+                setPost(prevPost);
+                setPostMyVote(prevMyVote);
                 setError(String(e?.message ?? e));
               })
-              .finally(() => setPostVotePending(null));
+              .finally(() => {
+                setPostVotePending(null);
+                // Reconcile with server truth (in case the endpoint isn't a pure toggle).
+                void reload();
+              });
           }}
           disabled={postVotePending !== null}
         >
@@ -70,16 +93,31 @@ export function PostView(props: { api: MoltbookApi; postId: string }) {
         <button
           onClick={() => {
             if (postVotePending) return;
-            const prev = post;
+            const prevPost = post;
+            const prevMyVote = postMyVote;
             setPostVotePending("down");
-            setPost((p: any) => (p ? { ...p, downvotes: (p.downvotes ?? 0) + 1 } : p));
+
+            setPost((p: any) => {
+              if (!p) return p;
+              const up = p.upvotes ?? 0;
+              const down = p.downvotes ?? 0;
+              if (prevMyVote === "down") return { ...p, downvotes: down - 1 }; // remove downvote
+              if (prevMyVote === "up") return { ...p, downvotes: down + 1, upvotes: up - 1 }; // switch
+              return { ...p, downvotes: down + 1 }; // add downvote
+            });
+            setPostMyVote((v) => (v === "down" ? null : "down"));
+
             props.api
               .downvotePost(props.postId)
               .catch((e) => {
-                setPost(prev);
+                setPost(prevPost);
+                setPostMyVote(prevMyVote);
                 setError(String(e?.message ?? e));
               })
-              .finally(() => setPostVotePending(null));
+              .finally(() => {
+                setPostVotePending(null);
+                void reload();
+              });
           }}
           disabled={postVotePending !== null}
         >
@@ -119,6 +157,7 @@ export function PostView(props: { api: MoltbookApi; postId: string }) {
           const id = String(c.id ?? "");
           const score = (c.upvotes ?? 0) - (c.downvotes ?? 0);
           const votePending = !!commentVotePending[id];
+          const myVote = commentMyVote[id] ?? null;
           return (
             <article key={id} style={{ border: "1px solid #ddd", borderRadius: 8, padding: 12 }}>
               <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
@@ -132,16 +171,36 @@ export function PostView(props: { api: MoltbookApi; postId: string }) {
                 <button
                   onClick={() => {
                     if (!id || votePending) return;
-                    const prev = comments;
+                    const prevComments = comments;
+                    const prevMyVote = myVote;
                     setCommentVotePending((m) => ({ ...m, [id]: true }));
+
                     setComments((list) => {
                       if (!list) return list;
-                      return list.map((x) => (String(x.id ?? "") === id ? { ...x, upvotes: (x.upvotes ?? 0) + 1 } : x));
+                      return list.map((x) => {
+                        if (String(x.id ?? "") !== id) return x;
+                        const up = x.upvotes ?? 0;
+                        // Toggle: clicking Upvote again removes.
+                        return prevMyVote === "up" ? { ...x, upvotes: up - 1 } : { ...x, upvotes: up + 1 };
+                      });
                     });
+                    setCommentMyVote((m) => {
+                      const next = { ...m };
+                      if (prevMyVote === "up") delete next[id];
+                      else next[id] = "up";
+                      return next;
+                    });
+
                     props.api
                       .upvoteComment(id)
                       .catch((e) => {
-                        setComments(prev);
+                        setComments(prevComments);
+                        setCommentMyVote((m) => {
+                          const next = { ...m };
+                          if (prevMyVote === "up") next[id] = "up";
+                          else delete next[id];
+                          return next;
+                        });
                         setError(String(e?.message ?? e));
                       })
                       .finally(() => {
@@ -150,6 +209,7 @@ export function PostView(props: { api: MoltbookApi; postId: string }) {
                           delete next[id];
                           return next;
                         });
+                        void reload();
                       });
                   }}
                   disabled={!id || votePending}
