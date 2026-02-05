@@ -122,7 +122,7 @@ export function App() {
         />
       )}
       {page.kind === "feed" && <Feed api={api} isAuthed={!!apiKey} onOpenPost={(id) => setRoute({ kind: "post", id })} />}
-      {page.kind === "submolts" && <Submolts api={api} />}
+      {page.kind === "submolts" && <Submolts api={api} isAuthed={!!apiKey} />}
       {page.kind === "post" && <PostView api={api} postId={page.id} />}
       {page.kind === "compose" && <Compose api={api} onDone={() => setRoute({ kind: "feed" })} />}
 

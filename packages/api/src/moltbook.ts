@@ -34,6 +34,9 @@ export class MoltbookApi {
   getSubmolt(name: string) {
     return this.http.getJson<any>(`/submolts/${encodeURIComponent(name)}`);
   }
+  createSubmolt(data: { name: string; display_name?: string; description?: string }) {
+    return this.http.postJson<any>("/submolts", data);
+  }
 
   // Posts & comments
   getPost(id: string) {
