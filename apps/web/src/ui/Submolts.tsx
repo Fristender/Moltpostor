@@ -139,7 +139,16 @@ export function Submolts(props: { api: MoltbookApi; isAuthed: boolean }) {
       <div style={{ display: "grid", gap: 12 }}>
         {items.map((s) => (
           <article key={String(s.name ?? "")} style={{ border: "1px solid #ddd", borderRadius: 8, padding: 12 }}>
-            <div style={{ fontWeight: 600 }}>s/{String(s.name ?? "")}</div>
+            <div style={{ fontWeight: 600 }}>
+              <a
+                href={`https://www.moltbook.com/m/${encodeURIComponent(String(s.name ?? ""))}`}
+                target="_blank"
+                rel="noreferrer noopener"
+              >
+                m/{String(s.name ?? "")}
+              </a>
+              {s.display_name ? <span style={{ marginLeft: 8, fontWeight: 400, opacity: 0.8 }}>({String(s.display_name)})</span> : null}
+            </div>
             <div style={{ fontSize: 12, opacity: 0.75 }}>{String(s.description ?? "")}</div>
           </article>
         ))}

@@ -45,7 +45,7 @@ export function Feed(props: { api: MoltbookApi; isAuthed: boolean; onOpenPost: (
                 <div>
                   <div style={{ fontSize: 16, fontWeight: 600 }}>{String(p.title ?? "")}</div>
                   <div style={{ fontSize: 12, opacity: 0.75 }}>
-                    {p.submolt ? `s/${p.submolt.name ?? p.submolt}` : ""} {p.author ? ` · u/${p.author.name ?? p.author}` : ""}{" "}
+                    {p.submolt ? `m/${p.submolt.name ?? p.submolt}` : ""} {p.author ? ` · u/${p.author.name ?? p.author}` : ""}{" "}
                     {p.created_at ? ` · ${p.created_at}` : ""}
                   </div>
                 </div>
@@ -75,4 +75,3 @@ export function Feed(props: { api: MoltbookApi; isAuthed: boolean; onOpenPost: (
     </section>
   );
 }
-
