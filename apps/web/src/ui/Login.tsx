@@ -29,8 +29,8 @@ function registerErrorReasons(status: number): string[] {
   }
 }
 
-export function Login(props: { api: MoltbookApi; onSetKey: (k: string) => void }) {
-  const [mode, setMode] = useState<Mode>("import");
+export function Login(props: { api: MoltbookApi; onSetKey: (key: string, label: string) => void; initialMode?: Mode }) {
+  const [mode, setMode] = useState<Mode>(props.initialMode ?? "import");
   const [key, setKey] = useState("");
   const [agentName, setAgentName] = useState("");
   const [description, setDescription] = useState("");
@@ -86,7 +86,7 @@ export function Login(props: { api: MoltbookApi; onSetKey: (k: string) => void }
               onClick={() => {
                 setError(null);
                 const k = key.trim();
-                if (k) props.onSetKey(k);
+                if (k) props.onSetKey(k, "Imported key");
               }}
               disabled={busy || !key.trim()}
             >
@@ -213,7 +213,7 @@ export function Login(props: { api: MoltbookApi; onSetKey: (k: string) => void }
               )}
               <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
                 <button
-                  onClick={() => props.onSetKey(registered.apiKey)}
+                  onClick={() => props.onSetKey(registered.apiKey, registered.agentName)}
                   type="button"
                 >
                   Save &amp; Continue

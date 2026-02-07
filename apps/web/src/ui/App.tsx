@@ -8,7 +8,9 @@ import { PostView } from "./PostView";
 import { Compose } from "./Compose";
 import { UserProfile } from "./UserProfile";
 import { Search } from "./Search";
-import { useStoredApiKey } from "./useStoredApiKey";
+import { Header } from "./Header";
+import { TabBar } from "./TabBar";
+import { useApiKeyStore, type Platform } from "./useApiKeyStore";
 
 type Page =
   | { kind: "feed" }
@@ -18,7 +20,7 @@ type Page =
   | { kind: "user"; name: string }
   | { kind: "search"; q: string }
   | { kind: "compose"; submolt?: string }
-  | { kind: "login" };
+  | { kind: "login"; initialMode?: "import" | "register" };
 
 function parseRoute(hash: string): Page {
   const h = hash.startsWith("#") ? hash.slice(1) : hash;
@@ -40,7 +42,6 @@ function parseRoute(hash: string): Page {
   if (parts[0] === "login") return { kind: "login" };
   if (parts[0] === "post" && parts[1]) return { kind: "post", id: decodeURIComponent(parts[1]) };
   if (parts[0] === "u" && parts[1]) return { kind: "user", name: decodeURIComponent(parts[1]) };
-  // Use /m/:name to mirror Moltbook's URLs.
   if (parts[0] === "m" && parts[1]) return { kind: "submolt", name: decodeURIComponent(parts[1]) };
 
   return { kind: "feed" };
@@ -78,7 +79,13 @@ function setRoute(page: Page) {
 }
 
 export function App() {
-  const [apiKey, setApiKey] = useStoredApiKey();
+  const keyStore = useApiKeyStore();
+  const [activePlatform, setActivePlatform] = useState<Platform>("moltbook");
+
+  const activeKey = keyStore.getActiveKey(activePlatform);
+  const apiKey = activeKey?.key ?? null;
+  const platformKeys = keyStore.getKeysForPlatform(activePlatform);
+
   const [page, setPage] = useState<Page>(() => {
     const initial = parseRoute(window.location.hash);
     if (initial.kind === "compose" && !apiKey) return { kind: "login" };
@@ -94,10 +101,8 @@ export function App() {
   }, [apiKey]);
 
   React.useEffect(() => {
-    // Keep UI state in sync with the URL (refresh + back/forward).
     const onChange = () => {
       const next = parseRoute(window.location.hash);
-      // If user tries to open auth-required route without a key, bounce to login.
       if (next.kind === "compose" && !apiKey) {
         setRoute({ kind: "login" });
         setPage({ kind: "login" });
@@ -106,90 +111,88 @@ export function App() {
       setPage(next);
     };
     window.addEventListener("hashchange", onChange);
-    // Normalize empty hash to a canonical route.
     if (!window.location.hash) setRoute(apiKey ? { kind: "feed" } : { kind: "login" });
     return () => window.removeEventListener("hashchange", onChange);
   }, [apiKey]);
 
+  const navigate = (p: Page) => {
+    setRoute(p);
+    setPage(p);
+  };
+
   return (
-    <div style={{ maxWidth: 900, margin: "0 auto", padding: 16, fontFamily: "system-ui, sans-serif" }}>
-      <header style={{ display: "flex", gap: 12, alignItems: "center", justifyContent: "space-between" }}>
-        <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-          <button onClick={() => setRoute({ kind: "feed" })}>Feed</button>
-          <button onClick={() => setRoute({ kind: "submolts" })}>Submolts</button>
-          <button onClick={() => setRoute({ kind: "search", q: "" })}>Search</button>
-          <button
-            onClick={() => {
-              if (page.kind === "submolt") setRoute({ kind: "compose", submolt: page.name });
-              else setRoute({ kind: "compose" });
-            }}
-            disabled={!apiKey}
-          >
-            + Post
-          </button>
-        </div>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <button onClick={() => window.location.reload()}>Refresh</button>
-          {apiKey ? (
-            <button
-              onClick={() => {
-                setApiKey(null);
-                setRoute({ kind: "login" });
+    <div style={{ display: "flex", flexDirection: "column", height: "100vh", fontFamily: "system-ui, sans-serif" }}>
+      <Header
+        activePlatform={activePlatform}
+        page={page}
+        isAuthed={!!apiKey}
+        platformKeys={platformKeys}
+        activeKey={activeKey}
+        onNavigate={(p) => navigate(p as Page)}
+        onSwitchKey={(id) => keyStore.setActiveKey(id)}
+        onRemoveKey={(id) => keyStore.removeKey(id)}
+        onRefresh={() => window.location.reload()}
+      />
+
+      <main style={{ flex: 1, overflowY: "auto", padding: 16 }}>
+        <div style={{ maxWidth: 900, margin: "0 auto" }}>
+          {page.kind === "login" && (
+            <Login
+              api={api}
+              {...(page.initialMode ? { initialMode: page.initialMode } : {})}
+              onSetKey={(key, label) => {
+                keyStore.addKey(activePlatform, label, key);
+                navigate({ kind: "feed" });
               }}
-            >
-              Logout
-            </button>
-          ) : (
-            <button onClick={() => setRoute({ kind: "login" })}>Login</button>
+            />
+          )}
+          {page.kind === "feed" && (
+            <Feed
+              api={api}
+              isAuthed={!!apiKey}
+              onOpenPost={(id) => navigate({ kind: "post", id })}
+              onOpenSubmolt={(name) => navigate({ kind: "submolt", name })}
+            />
+          )}
+          {page.kind === "submolts" && (
+            <Submolts api={api} isAuthed={!!apiKey} onOpenSubmolt={(name) => navigate({ kind: "submolt", name })} />
+          )}
+          {page.kind === "submolt" && (
+            <SubmoltView api={api} name={page.name} onOpenPost={(id) => navigate({ kind: "post", id })} />
+          )}
+          {page.kind === "post" && <PostView api={api} postId={page.id} />}
+          {page.kind === "user" && (
+            <UserProfile
+              api={api}
+              name={page.name}
+              onOpenPost={(id) => navigate({ kind: "post", id })}
+              onOpenSubmolt={(name) => navigate({ kind: "submolt", name })}
+            />
+          )}
+          {page.kind === "search" && (
+            <Search
+              api={api}
+              initialQuery={page.q}
+              onSetQuery={(q) => navigate({ kind: "search", q })}
+              onOpenPost={(id) => navigate({ kind: "post", id })}
+              onOpenSubmolt={(name) => navigate({ kind: "submolt", name })}
+              onOpenUser={(name) => navigate({ kind: "user", name })}
+            />
+          )}
+          {page.kind === "compose" && (
+            <Compose
+              api={api}
+              {...(page.submolt ? { initialSubmolt: page.submolt } : {})}
+              onCreated={(postId) => navigate({ kind: "post", id: postId })}
+            />
           )}
         </div>
-      </header>
+      </main>
 
-      <hr />
+      <TabBar activePlatform={activePlatform} onSwitchPlatform={setActivePlatform} />
 
-      {page.kind === "login" && (
-        <Login
-          api={api}
-          onSetKey={(k) => {
-            setApiKey(k);
-            setRoute({ kind: "feed" });
-          }}
-        />
-      )}
-      {page.kind === "feed" && (
-        <Feed
-          api={api}
-          isAuthed={!!apiKey}
-          onOpenPost={(id) => setRoute({ kind: "post", id })}
-          onOpenSubmolt={(name) => setRoute({ kind: "submolt", name })}
-        />
-      )}
-      {page.kind === "submolts" && <Submolts api={api} isAuthed={!!apiKey} onOpenSubmolt={(name) => setRoute({ kind: "submolt", name })} />}
-      {page.kind === "submolt" && <SubmoltView api={api} name={page.name} onOpenPost={(id) => setRoute({ kind: "post", id })} />}
-      {page.kind === "post" && <PostView api={api} postId={page.id} />}
-      {page.kind === "user" && (
-        <UserProfile api={api} name={page.name} onOpenPost={(id) => setRoute({ kind: "post", id })} onOpenSubmolt={(name) => setRoute({ kind: "submolt", name })} />
-      )}
-      {page.kind === "search" && (
-        <Search
-          api={api}
-          initialQuery={page.q}
-          onSetQuery={(q) => setRoute({ kind: "search", q })}
-          onOpenPost={(id) => setRoute({ kind: "post", id })}
-          onOpenSubmolt={(name) => setRoute({ kind: "submolt", name })}
-          onOpenUser={(name) => setRoute({ kind: "user", name })}
-        />
-      )}
-      {page.kind === "compose" && (
-        <Compose
-          api={api}
-          {...(page.submolt ? { initialSubmolt: page.submolt } : {})}
-          onCreated={(postId) => setRoute({ kind: "post", id: postId })}
-        />
-      )}
-
-      <footer style={{ marginTop: 24, fontSize: 12, opacity: 0.8 }}>
-        <div>Moltpostor is a static client. Your API key is stored in this browser only.</div>
+      <footer style={{ padding: "8px 16px", fontSize: 12, opacity: 0.8, textAlign: "center", borderTop: "1px solid #eee", flexShrink: 0 }}>
+        Moltpostor is a static client. Your API keys are stored in this browser only.
       </footer>
     </div>
   );
