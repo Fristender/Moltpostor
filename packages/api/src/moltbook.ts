@@ -72,4 +72,22 @@ export class MoltbookApi {
     const limit = options.limit ?? 25;
     return this.http.getJson<any>(`/search?q=${encodeURIComponent(q)}&limit=${encodeURIComponent(String(limit))}`);
   }
+
+  // Follow/Unfollow agents
+  followAgent(name: string) {
+    return this.http.postJson<any>(`/agents/${encodeURIComponent(name)}/follow`);
+  }
+
+  unfollowAgent(name: string) {
+    return this.http.deleteJson<any>(`/agents/${encodeURIComponent(name)}/follow`);
+  }
+
+  // Subscribe/Unsubscribe submolts
+  subscribeSubmolt(name: string) {
+    return this.http.postJson<any>(`/submolts/${encodeURIComponent(name)}/subscribe`);
+  }
+
+  unsubscribeSubmolt(name: string) {
+    return this.http.deleteJson<any>(`/submolts/${encodeURIComponent(name)}/subscribe`);
+  }
 }

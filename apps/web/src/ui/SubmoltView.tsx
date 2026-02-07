@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import type { MoltbookApi } from "@moltpostor/api";
+import { isSubmoltPinned, pinSubmolt, unpinSubmolt, isSubscribed as isSubscribedStored, setSubscribed as setSubscribedStored, detectSubscribeStatus } from "./pins";
 
 function normalizePosts(data: any): any[] {
   if (!data) return [];
@@ -13,9 +14,14 @@ export function SubmoltView(props: { api: MoltbookApi; name: string; onOpenPost:
   const [submolt, setSubmolt] = useState<any | null>(null);
   const [posts, setPosts] = useState<any[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [subscribed, setSubscribed] = useState(() => isSubscribedStored(props.name));
+  const [subBusy, setSubBusy] = useState(false);
+  const [pinned, setPinned] = useState(() => isSubmoltPinned(props.name));
 
   useEffect(() => {
     setPage(1);
+    setPinned(isSubmoltPinned(props.name));
+    setSubscribed(isSubscribedStored(props.name));
   }, [props.name]);
 
   useEffect(() => {
@@ -24,9 +30,13 @@ export function SubmoltView(props: { api: MoltbookApi; name: string; onOpenPost:
     (async () => {
       try {
         const s = await props.api.getSubmolt(props.name);
+        if (!cancelled) {
+          detectSubscribeStatus(s, props.name);
+          setSubscribed(isSubscribedStored(props.name));
+          setSubmolt(s.submolt ?? s);
+        }
         const f = await props.api.getSubmoltFeed(props.name, page);
         if (cancelled) return;
-        setSubmolt(s.submolt ?? s);
         setPosts(normalizePosts(f));
       } catch (e: any) {
         if (cancelled) return;
@@ -38,6 +48,37 @@ export function SubmoltView(props: { api: MoltbookApi; name: string; onOpenPost:
     };
   }, [page, props.api, props.name]);
 
+  const handleSubscribe = async () => {
+    setSubBusy(true);
+    try {
+      if (subscribed) {
+        const res = await props.api.unsubscribeSubmolt(props.name);
+        const isNowSubscribed = res?.action === "none";
+        setSubscribedStored(props.name, isNowSubscribed);
+        setSubscribed(isNowSubscribed);
+      } else {
+        const res = await props.api.subscribeSubmolt(props.name);
+        const isNowSubscribed = res?.action !== "unsubscribed";
+        setSubscribedStored(props.name, isNowSubscribed);
+        setSubscribed(isNowSubscribed);
+      }
+    } catch (e: any) {
+      setError(e?.message ?? String(e));
+    } finally {
+      setSubBusy(false);
+    }
+  };
+
+  const handlePin = () => {
+    if (pinned) {
+      unpinSubmolt(props.name);
+      setPinned(false);
+    } else {
+      pinSubmolt(props.name);
+      setPinned(true);
+    }
+  };
+
   return (
     <section>
       <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12 }}>
@@ -45,9 +86,17 @@ export function SubmoltView(props: { api: MoltbookApi; name: string; onOpenPost:
           <h2 style={{ marginBottom: 4 }}>m/{props.name}</h2>
           {submolt?.display_name ? <div style={{ opacity: 0.8 }}>{String(submolt.display_name)}</div> : null}
         </div>
-        <a href={`https://www.moltbook.com/m/${encodeURIComponent(props.name)}`} target="_blank" rel="noreferrer noopener">
-          View on Moltbook
-        </a>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <button onClick={handleSubscribe} disabled={subBusy}>
+            {subscribed ? "Unsubscribe" : "Subscribe"}
+          </button>
+          <button onClick={handlePin}>
+            {pinned ? "Unpin" : "Pin"}
+          </button>
+          <a href={`https://www.moltbook.com/m/${encodeURIComponent(props.name)}`} target="_blank" rel="noreferrer noopener">
+            View on Moltbook
+          </a>
+        </div>
       </div>
 
       {submolt?.description ? <p style={{ opacity: 0.9 }}>{String(submolt.description)}</p> : null}

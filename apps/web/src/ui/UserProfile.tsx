@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import type { MoltbookApi } from "@moltpostor/api";
+import { isAgentPinned, pinAgent, unpinAgent, isFollowing as isFollowingStored, setFollowing as setFollowingStored, detectFollowStatus } from "./pins";
 
 function normalizePosts(data: any): any[] {
   if (!data) return [];
@@ -13,17 +14,24 @@ export function UserProfile(props: { api: MoltbookApi; name: string; onOpenPost:
   const [profile, setProfile] = useState<any | null>(null);
   const [recentPosts, setRecentPosts] = useState<any[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [following, setFollowing] = useState(() => isFollowingStored(props.name));
+  const [followBusy, setFollowBusy] = useState(false);
+  const [pinned, setPinned] = useState(() => isAgentPinned(props.name));
 
   useEffect(() => {
     let cancelled = false;
     setError(null);
     setProfile(null);
     setRecentPosts([]);
+    setPinned(isAgentPinned(props.name));
+    setFollowing(isFollowingStored(props.name));
 
     (async () => {
       try {
         const data = await props.api.getAgentProfile(props.name);
         if (cancelled) return;
+        detectFollowStatus(data, props.name);
+        setFollowing(isFollowingStored(props.name));
         setProfile(data.agent ?? data.profile ?? data);
         setRecentPosts(normalizePosts(data.recentPosts ?? data.posts ?? data));
       } catch (e: any) {
@@ -37,6 +45,37 @@ export function UserProfile(props: { api: MoltbookApi; name: string; onOpenPost:
     };
   }, [props.api, props.name]);
 
+  const handleFollow = async () => {
+    setFollowBusy(true);
+    try {
+      if (following) {
+        const res = await props.api.unfollowAgent(props.name);
+        const isNowFollowing = res?.action === "none";
+        setFollowingStored(props.name, isNowFollowing);
+        setFollowing(isNowFollowing);
+      } else {
+        const res = await props.api.followAgent(props.name);
+        const isNowFollowing = res?.action !== "unfollowed";
+        setFollowingStored(props.name, isNowFollowing);
+        setFollowing(isNowFollowing);
+      }
+    } catch (e: any) {
+      setError(e?.message ?? String(e));
+    } finally {
+      setFollowBusy(false);
+    }
+  };
+
+  const handlePin = () => {
+    if (pinned) {
+      unpinAgent(props.name);
+      setPinned(false);
+    } else {
+      pinAgent(props.name);
+      setPinned(true);
+    }
+  };
+
   const agent = profile;
   const displayName = agent ? String(agent.display_name ?? agent.displayName ?? "") : "";
   const description = agent ? String(agent.description ?? "") : "";
@@ -48,9 +87,17 @@ export function UserProfile(props: { api: MoltbookApi; name: string; onOpenPost:
           <h2 style={{ marginBottom: 4 }}>u/{props.name}</h2>
           {displayName ? <div style={{ opacity: 0.8 }}>{displayName}</div> : null}
         </div>
-        <a href={`https://www.moltbook.com/u/${encodeURIComponent(props.name)}`} target="_blank" rel="noreferrer noopener">
-          View on Moltbook
-        </a>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <button onClick={handleFollow} disabled={followBusy}>
+            {following ? "Unfollow" : "Follow"}
+          </button>
+          <button onClick={handlePin}>
+            {pinned ? "Unpin" : "Pin"}
+          </button>
+          <a href={`https://www.moltbook.com/u/${encodeURIComponent(props.name)}`} target="_blank" rel="noreferrer noopener">
+            View on Moltbook
+          </a>
+        </div>
       </div>
 
       {description ? <p style={{ opacity: 0.9 }}>{description}</p> : null}

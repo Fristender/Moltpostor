@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import type { MoltbookApi } from "@moltpostor/api";
+import { getPinnedAgents, getPinnedSubmolts } from "./pins";
 
 function normalizePosts(data: any): any[] {
   if (!data) return [];
@@ -34,6 +35,39 @@ export function Feed(props: { api: MoltbookApi; isAuthed: boolean; onOpenPost: (
   return (
     <section>
       <h2>{props.isAuthed ? "My feed" : "Global feed"}</h2>
+
+      {(() => {
+        const agents = getPinnedAgents();
+        const submolts = getPinnedSubmolts();
+        if (agents.length === 0 && submolts.length === 0) return null;
+        return (
+          <div style={{ marginBottom: 16, padding: 12, border: "1px solid #ddd", borderRadius: 8 }}>
+            <strong style={{ fontSize: 14 }}>Pinned</strong>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 8 }}>
+              {submolts.map((s) => (
+                <a
+                  key={`s-${s}`}
+                  href={`#/m/${encodeURIComponent(s)}`}
+                  onClick={(e) => { e.preventDefault(); props.onOpenSubmolt(s); }}
+                  style={{ padding: "2px 10px", borderRadius: 12, fontSize: 13, background: "#e8e8e8", textDecoration: "none", color: "inherit" }}
+                >
+                  m/{s}
+                </a>
+              ))}
+              {agents.map((a) => (
+                <a
+                  key={`u-${a}`}
+                  href={`#/u/${encodeURIComponent(a)}`}
+                  style={{ padding: "2px 10px", borderRadius: 12, fontSize: 13, background: "#d8e8f8", textDecoration: "none", color: "inherit" }}
+                >
+                  u/{a}
+                </a>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
+
       {error && <div style={{ color: "crimson" }}>{error}</div>}
       <div style={{ display: "grid", gap: 12 }}>
         {posts.map((p) => {
