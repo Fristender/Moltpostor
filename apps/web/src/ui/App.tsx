@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from "react";
+import React, { useMemo, useRef, useState, useCallback, useEffect } from "react";
 import { MoltbookApi, MoltbookHttpClient, DEFAULT_MOLTBOOK_BASE_URL } from "@moltpostor/api";
 import { Feed } from "./Feed";
 import { Login } from "./Login";
@@ -31,11 +31,34 @@ type Page =
   | { kind: "watch-history" }
   | { kind: "saved" };
 
+type CachedPage = {
+  key: string;
+  page: Page;
+  scrollTop: number;
+};
+
 const MENU_PAGES = new Set<string>(["menu", "settings", "watch-history", "saved"]);
 
 function tabForPage(page: Page): Tab {
   if (MENU_PAGES.has(page.kind)) return "menu";
   return "moltbook";
+}
+
+function pageKey(page: Page): string {
+  switch (page.kind) {
+    case "feed": return "feed";
+    case "submolts": return "submolts";
+    case "submolt": return `submolt:${page.name}`;
+    case "post": return `post:${page.id}`;
+    case "user": return `user:${page.name}`;
+    case "search": return `search:${page.q}`;
+    case "compose": return `compose:${page.submolt ?? ""}`;
+    case "login": return "login";
+    case "menu": return "menu";
+    case "settings": return "settings";
+    case "watch-history": return "watch-history";
+    case "saved": return "saved";
+  }
 }
 
 function parseRoute(hash: string): Page {
@@ -67,48 +90,28 @@ function parseRoute(hash: string): Page {
   return { kind: "feed" };
 }
 
-function setRoute(page: Page) {
+function pageToHash(page: Page): string {
   switch (page.kind) {
-    case "feed":
-      window.location.hash = "#/feed";
-      return;
-    case "submolts":
-      window.location.hash = "#/submolts";
-      return;
-    case "search":
-      window.location.hash = page.q ? `#/search?q=${encodeURIComponent(page.q)}` : "#/search";
-      return;
-    case "submolt":
-      window.location.hash = `#/m/${encodeURIComponent(page.name)}`;
-      return;
-    case "compose":
-      window.location.hash = page.submolt
-        ? `#/compose?submolt=${encodeURIComponent(page.submolt)}`
-        : "#/compose";
-      return;
-    case "login":
-      window.location.hash = "#/login";
-      return;
-    case "post":
-      window.location.hash = `#/post/${encodeURIComponent(page.id)}`;
-      return;
-    case "user":
-      window.location.hash = `#/u/${encodeURIComponent(page.name)}`;
-      return;
-    case "menu":
-      window.location.hash = "#/menu";
-      return;
-    case "settings":
-      window.location.hash = "#/settings";
-      return;
-    case "watch-history":
-      window.location.hash = "#/watch-history";
-      return;
-    case "saved":
-      window.location.hash = "#/saved";
-      return;
+    case "feed": return "#/feed";
+    case "submolts": return "#/submolts";
+    case "search": return page.q ? `#/search?q=${encodeURIComponent(page.q)}` : "#/search";
+    case "submolt": return `#/m/${encodeURIComponent(page.name)}`;
+    case "compose": return page.submolt ? `#/compose?submolt=${encodeURIComponent(page.submolt)}` : "#/compose";
+    case "login": return "#/login";
+    case "post": return `#/post/${encodeURIComponent(page.id)}`;
+    case "user": return `#/u/${encodeURIComponent(page.name)}`;
+    case "menu": return "#/menu";
+    case "settings": return "#/settings";
+    case "watch-history": return "#/watch-history";
+    case "saved": return "#/saved";
   }
 }
+
+function setRoute(page: Page) {
+  window.location.hash = pageToHash(page);
+}
+
+const MAX_CACHED_PAGES = 20;
 
 export function App() {
   useTheme();
@@ -119,13 +122,37 @@ export function App() {
   const apiKey = activeKey?.key ?? null;
   const platformKeys = keyStore.getKeysForPlatform(activePlatform);
 
-  const [page, setPage] = useState<Page>(() => {
+  const [currentPage, setCurrentPage] = useState<Page>(() => {
     const initial = parseRoute(window.location.hash);
     if (initial.kind === "compose" && !apiKey) return { kind: "login" };
     return initial.kind === "login" && apiKey ? { kind: "feed" } : initial;
   });
 
-  const activeTab = tabForPage(page);
+  const activeTab = tabForPage(currentPage);
+
+  // Page cache: keeps visited pages mounted
+  const [platformCache, setPlatformCache] = useState<CachedPage[]>(() => {
+    const initial = parseRoute(window.location.hash);
+    if (MENU_PAGES.has(initial.kind)) return [{ key: pageKey({ kind: "feed" }), page: { kind: "feed" }, scrollTop: 0 }];
+    return [{ key: pageKey(initial), page: initial, scrollTop: 0 }];
+  });
+  const [menuCache, setMenuCache] = useState<CachedPage[]>(() => {
+    const initial = parseRoute(window.location.hash);
+    if (MENU_PAGES.has(initial.kind)) return [{ key: pageKey(initial), page: initial, scrollTop: 0 }];
+    return [{ key: pageKey({ kind: "menu" }), page: { kind: "menu" }, scrollTop: 0 }];
+  });
+
+  const [activePlatformKey, setActivePlatformKey] = useState<string>(() => {
+    const initial = parseRoute(window.location.hash);
+    return MENU_PAGES.has(initial.kind) ? pageKey({ kind: "feed" }) : pageKey(initial);
+  });
+  const [activeMenuKey, setActiveMenuKey] = useState<string>(() => {
+    const initial = parseRoute(window.location.hash);
+    return MENU_PAGES.has(initial.kind) ? pageKey(initial) : pageKey({ kind: "menu" });
+  });
+
+  // Refs for scroll containers per cached page
+  const scrollRefs = useRef<Map<string, HTMLDivElement | null>>(new Map());
 
   const api = useMemo(() => {
     const http = new MoltbookHttpClient({
@@ -137,69 +164,149 @@ export function App() {
 
   const navigatingRef = useRef(false);
 
-  React.useEffect(() => {
+  const saveScrollPosition = useCallback((key: string, cache: CachedPage[], setCache: React.Dispatch<React.SetStateAction<CachedPage[]>>) => {
+    const el = scrollRefs.current.get(key);
+    if (el) {
+      const scrollTop = el.scrollTop;
+      setCache(cache.map(c => c.key === key ? { ...c, scrollTop } : c));
+    }
+  }, []);
+
+  const restoreScrollPosition = useCallback((key: string) => {
+    requestAnimationFrame(() => {
+      const el = scrollRefs.current.get(key);
+      if (el) {
+        const cache = MENU_PAGES.has(parseRoute(window.location.hash).kind) ? menuCache : platformCache;
+        const cached = cache.find(c => c.key === key);
+        if (cached) el.scrollTop = cached.scrollTop;
+      }
+    });
+  }, [platformCache, menuCache]);
+
+  const applyPage = useCallback((next: Page, isBackNav: boolean = false) => {
+    const nextTab = tabForPage(next);
+    const prevTab = tabForPage(currentPage);
+    const nextKey = pageKey(next);
+
+    // Save current scroll position
+    const currentKey = MENU_PAGES.has(currentPage.kind) ? activeMenuKey : activePlatformKey;
+    if (MENU_PAGES.has(currentPage.kind)) {
+      saveScrollPosition(currentKey, menuCache, setMenuCache);
+    } else {
+      saveScrollPosition(currentKey, platformCache, setPlatformCache);
+    }
+
+    setCurrentPage(next);
+
+    if (MENU_PAGES.has(next.kind)) {
+      setActiveMenuKey(nextKey);
+      setMenuCache(prev => {
+        const existing = prev.find(c => c.key === nextKey);
+        if (existing) {
+          if (isBackNav) {
+            // Restore scroll on back navigation
+            requestAnimationFrame(() => restoreScrollPosition(nextKey));
+          }
+          return prev;
+        }
+        const newCache = [...prev, { key: nextKey, page: next, scrollTop: 0 }];
+        if (newCache.length > MAX_CACHED_PAGES) newCache.shift();
+        return newCache;
+      });
+    } else {
+      setActivePlatformKey(nextKey);
+      setPlatformCache(prev => {
+        const existing = prev.find(c => c.key === nextKey);
+        if (existing) {
+          if (isBackNav) {
+            requestAnimationFrame(() => restoreScrollPosition(nextKey));
+          }
+          return prev;
+        }
+        const newCache = [...prev, { key: nextKey, page: next, scrollTop: 0 }];
+        if (newCache.length > MAX_CACHED_PAGES) newCache.shift();
+        return newCache;
+      });
+    }
+
+    if (nextTab !== prevTab && isBackNav) {
+      requestAnimationFrame(() => restoreScrollPosition(nextKey));
+    }
+  }, [currentPage, activeMenuKey, activePlatformKey, menuCache, platformCache, saveScrollPosition, restoreScrollPosition]);
+
+  useEffect(() => {
     const onChange = () => {
       if (navigatingRef.current) {
         navigatingRef.current = false;
         return;
       }
+      // This is a browser back/forward navigation
       const next = parseRoute(window.location.hash);
       if (next.kind === "compose" && !apiKey) {
         setRoute({ kind: "login" });
-        setPage({ kind: "login" });
+        applyPage({ kind: "login" }, true);
         return;
       }
-      setPage(next);
+      applyPage(next, true);
     };
     window.addEventListener("hashchange", onChange);
     if (!window.location.hash) setRoute(apiKey ? { kind: "feed" } : { kind: "login" });
     return () => window.removeEventListener("hashchange", onChange);
-  }, [apiKey]);
+  }, [apiKey, applyPage]);
 
-  const navigate = (p: Page) => {
+  const navigate = useCallback((p: Page) => {
     navigatingRef.current = true;
     setRoute(p);
-    setPage(p);
-  };
+    applyPage(p, false);
+  }, [applyPage]);
 
-  const handleSwitchTab = (tab: Tab) => {
+  const handleSwitchTab = useCallback((tab: Tab) => {
+    if (tab === activeTab) return;
+    // Save scroll position of current tab's active page
+    const currentKey = activeTab === "menu" ? activeMenuKey : activePlatformKey;
+    if (activeTab === "menu") {
+      saveScrollPosition(currentKey, menuCache, setMenuCache);
+    } else {
+      saveScrollPosition(currentKey, platformCache, setPlatformCache);
+    }
+
     if (tab === "menu") {
-      navigate({ kind: "menu" });
+      const targetPage = menuCache.find(c => c.key === activeMenuKey)?.page ?? { kind: "menu" as const };
+      navigate(targetPage);
     } else {
       setActivePlatform(tab);
-      if (MENU_PAGES.has(page.kind)) {
-        navigate({ kind: "feed" });
-      }
+      const targetPage = platformCache.find(c => c.key === activePlatformKey)?.page ?? { kind: "feed" as const };
+      navigate(targetPage);
     }
-  };
+  }, [activeTab, activeMenuKey, activePlatformKey, menuCache, platformCache, navigate, saveScrollPosition]);
 
-  const showHeader = !MENU_PAGES.has(page.kind);
+  const platformNavigate = useCallback((p: Page) => navigate(p), [navigate]);
+  const menuNavigate = useCallback((p: Page) => navigate(p), [navigate]);
 
-  return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100vh", fontFamily: "system-ui, sans-serif" }}>
-      {showHeader && (
-        <Header
-          activePlatform={activePlatform}
-          page={page}
-          isAuthed={!!apiKey}
-          platformKeys={platformKeys}
-          activeKey={activeKey}
-          onNavigate={(p) => navigate(p as Page)}
-          onSwitchKey={(id) => keyStore.setActiveKey(id)}
-          onRemoveKey={(id) => keyStore.removeKey(id)}
-          onRefresh={() => window.location.reload()}
-        />
-      )}
+  const showHeader = activeTab !== "menu";
 
-      <main style={{ flex: 1, overflowY: "auto", padding: 16 }}>
-        <div style={{ maxWidth: 900, margin: "0 auto" }}>
+  const renderPlatformPage = (cached: CachedPage) => {
+    const { key, page } = cached;
+    const isActive = key === activePlatformKey && activeTab !== "menu";
+    return (
+      <div
+        key={key}
+        ref={(el) => { scrollRefs.current.set(key, el); }}
+        style={{
+          display: isActive ? "block" : "none",
+          height: "100%",
+          overflowY: "auto",
+          padding: 16,
+        }}
+      >
+        <div style={{ maxWidth: 900, margin: "0 auto", paddingBottom: 24 }}>
           {page.kind === "login" && (
             <Login
               api={api}
               {...(page.initialMode ? { initialMode: page.initialMode } : {})}
-              onSetKey={(key, label) => {
-                keyStore.addKey(activePlatform, label, key);
-                navigate({ kind: "feed" });
+              onSetKey={(k, label) => {
+                keyStore.addKey(activePlatform, label, k);
+                platformNavigate({ kind: "feed" });
               }}
             />
           )}
@@ -207,47 +314,95 @@ export function App() {
             <Feed
               api={api}
               isAuthed={!!apiKey}
-              onOpenPost={(id) => navigate({ kind: "post", id })}
-              onOpenSubmolt={(name) => navigate({ kind: "submolt", name })}
+              onOpenPost={(id) => platformNavigate({ kind: "post", id })}
+              onOpenSubmolt={(name) => platformNavigate({ kind: "submolt", name })}
             />
           )}
           {page.kind === "submolts" && (
-            <Submolts api={api} isAuthed={!!apiKey} onOpenSubmolt={(name) => navigate({ kind: "submolt", name })} />
+            <Submolts api={api} isAuthed={!!apiKey} onOpenSubmolt={(name) => platformNavigate({ kind: "submolt", name })} />
           )}
           {page.kind === "submolt" && (
-            <SubmoltView api={api} name={page.name} onOpenPost={(id) => navigate({ kind: "post", id })} />
+            <SubmoltView api={api} name={page.name} onOpenPost={(id) => platformNavigate({ kind: "post", id })} />
           )}
           {page.kind === "post" && <PostView api={api} postId={page.id} />}
           {page.kind === "user" && (
             <UserProfile
               api={api}
               name={page.name}
-              onOpenPost={(id) => navigate({ kind: "post", id })}
-              onOpenSubmolt={(name) => navigate({ kind: "submolt", name })}
+              onOpenPost={(id) => platformNavigate({ kind: "post", id })}
+              onOpenSubmolt={(name) => platformNavigate({ kind: "submolt", name })}
             />
           )}
           {page.kind === "search" && (
             <Search
               api={api}
               initialQuery={page.q}
-              onSetQuery={(q) => navigate({ kind: "search", q })}
-              onOpenPost={(id) => navigate({ kind: "post", id })}
-              onOpenSubmolt={(name) => navigate({ kind: "submolt", name })}
-              onOpenUser={(name) => navigate({ kind: "user", name })}
+              onSetQuery={(q) => platformNavigate({ kind: "search", q })}
+              onOpenPost={(id) => platformNavigate({ kind: "post", id })}
+              onOpenSubmolt={(name) => platformNavigate({ kind: "submolt", name })}
+              onOpenUser={(name) => platformNavigate({ kind: "user", name })}
             />
           )}
           {page.kind === "compose" && (
             <Compose
               api={api}
               {...(page.submolt ? { initialSubmolt: page.submolt } : {})}
-              onCreated={(postId) => navigate({ kind: "post", id: postId })}
+              onCreated={(postId) => platformNavigate({ kind: "post", id: postId })}
             />
           )}
-          {page.kind === "menu" && <MenuPage onNavigate={(p) => navigate(p as Page)} />}
+        </div>
+      </div>
+    );
+  };
+
+  const renderMenuPage = (cached: CachedPage) => {
+    const { key, page } = cached;
+    const isActive = key === activeMenuKey && activeTab === "menu";
+    return (
+      <div
+        key={key}
+        ref={(el) => { scrollRefs.current.set(key, el); }}
+        style={{
+          display: isActive ? "block" : "none",
+          height: "100%",
+          overflowY: "auto",
+          padding: 16,
+        }}
+      >
+        <div style={{ maxWidth: 900, margin: "0 auto", paddingBottom: 24 }}>
+          {page.kind === "menu" && <MenuPage onNavigate={(p) => menuNavigate(p as Page)} />}
           {page.kind === "settings" && <SettingsPage />}
           {page.kind === "watch-history" && <WatchHistoryPage />}
           {page.kind === "saved" && <SavedPage />}
         </div>
+      </div>
+    );
+  };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", height: "100vh", fontFamily: "system-ui, sans-serif" }}>
+      {showHeader && (
+        <Header
+          activePlatform={activePlatform}
+          page={platformCache.find(c => c.key === activePlatformKey)?.page ?? { kind: "feed" }}
+          isAuthed={!!apiKey}
+          platformKeys={platformKeys}
+          activeKey={activeKey}
+          onNavigate={(p) => platformNavigate(p as Page)}
+          onSwitchKey={(id) => keyStore.setActiveKey(id)}
+          onRemoveKey={(id) => keyStore.removeKey(id)}
+          onRefresh={() => window.location.reload()}
+        />
+      )}
+
+      {/* Platform tab pages */}
+      <main style={{ flex: 1, overflow: "hidden", display: activeTab === "menu" ? "none" : "block" }}>
+        {platformCache.map(renderPlatformPage)}
+      </main>
+
+      {/* Menu tab pages */}
+      <main style={{ flex: 1, overflow: "hidden", display: activeTab === "menu" ? "block" : "none" }}>
+        {menuCache.map(renderMenuPage)}
       </main>
 
       <TabBar activeTab={activeTab} onSwitchTab={handleSwitchTab} />
