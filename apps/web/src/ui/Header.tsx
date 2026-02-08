@@ -1,8 +1,10 @@
 import React, { useRef, useState, useEffect } from "react";
 import type { Platform, StoredApiKey } from "./useApiKeyStore";
+import type { Tab } from "./TabBar";
 
 type HeaderProps = {
   activePlatform: Platform;
+  activeTab: Tab;
   page: { kind: string; [k: string]: any };
   isAuthed: boolean;
   platformKeys: StoredApiKey[];
@@ -11,6 +13,13 @@ type HeaderProps = {
   onSwitchKey: (id: string) => void;
   onRemoveKey: (id: string) => void;
   onRefresh: () => void;
+  // Navigation
+  canGoBack: boolean;
+  canGoPrev: boolean;
+  canGoNext: boolean;
+  onBack: () => void;
+  onPrev: () => void;
+  onNext: () => void;
 };
 
 type NavPage = { kind: string; [k: string]: any };
@@ -58,7 +67,32 @@ export function Header(props: HeaderProps) {
       }}
     >
       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-        {navItems.map((item) => {
+        <button
+          onClick={props.onPrev}
+          disabled={!props.canGoPrev}
+          title="Previous page (chronological)"
+          style={{ padding: "4px 8px", opacity: props.canGoPrev ? 1 : 0.4 }}
+        >
+          &larr;
+        </button>
+        <button
+          onClick={props.onNext}
+          disabled={!props.canGoNext}
+          title="Next page (chronological)"
+          style={{ padding: "4px 8px", opacity: props.canGoNext ? 1 : 0.4 }}
+        >
+          &rarr;
+        </button>
+        <button
+          onClick={props.onBack}
+          disabled={!props.canGoBack}
+          title="Back (logical parent)"
+          style={{ padding: "4px 8px", opacity: props.canGoBack ? 1 : 0.4 }}
+        >
+          &uarr;
+        </button>
+        <div style={{ width: 1, height: 20, background: "var(--color-border)", margin: "0 4px" }} />
+        {props.activeTab !== "menu" && navItems.map((item) => {
           const isCompose = item.page.kind === "compose";
           return (
             <button
@@ -84,11 +118,12 @@ export function Header(props: HeaderProps) {
       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
         <button onClick={props.onRefresh}>Refresh</button>
 
-        <div ref={menuRef} style={{ position: "relative" }}>
-          <button onClick={() => { setMenuOpen((v) => !v); setConfirmRemoveId(null); setRevealedKeyId(null); }}>
-            {props.activeKey ? props.activeKey.label : "No key"}
-            {" \u25BE"}
-          </button>
+        {props.activeTab !== "menu" && (
+          <div ref={menuRef} style={{ position: "relative" }}>
+            <button onClick={() => { setMenuOpen((v) => !v); setConfirmRemoveId(null); setRevealedKeyId(null); }}>
+              {props.activeKey ? props.activeKey.label : "No key"}
+              {" \u25BE"}
+            </button>
 
           {menuOpen && (
             <div
@@ -217,6 +252,7 @@ export function Header(props: HeaderProps) {
             </div>
           )}
         </div>
+        )}
       </div>
     </header>
   );

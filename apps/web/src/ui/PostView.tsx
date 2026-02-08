@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import type { MoltbookApi } from "@moltpostor/api";
+import { useAppContext } from "./AppContext";
 
 type Vote = null | "up" | "down";
 
@@ -31,9 +32,11 @@ function writeVote(key: string, vote: Vote) {
 }
 
 export function PostView(props: { api: MoltbookApi; postId: string }) {
+  const { saveItem, unsaveItem, isSaved, addToHistory, cacheContent, getCachedContent } = useAppContext();
   const [post, setPost] = useState<any | null>(null);
   const [comments, setComments] = useState<any[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [usingCache, setUsingCache] = useState(false);
   const [comment, setComment] = useState("");
   const [postVotePending, setPostVotePending] = useState<null | "up" | "down">(null);
   const [commentVotePending, setCommentVotePending] = useState<Record<string, true>>({});
@@ -62,12 +65,30 @@ export function PostView(props: { api: MoltbookApi; postId: string }) {
       const c = await props.api.getComments(props.postId);
       if (seq !== reloadSeqRef.current) return;
       setError(null);
-      setPost(p.post ?? p);
-      const list = Array.isArray(c) ? c : (c.comments ?? c ?? []);
-      setComments(list);
+      setUsingCache(false);
+      const postData = p.post ?? p;
+      const commentList = Array.isArray(c) ? c : (c.comments ?? c ?? []);
+      setPost(postData);
+      setComments(commentList);
+      // Cache the content for offline access
+      cacheContent({
+        id: props.postId,
+        platform: "moltbook",
+        type: "post",
+        data: { post: postData, comments: commentList },
+      });
     } catch (e: any) {
       if (seq !== reloadSeqRef.current) return;
-      setError(e?.message ?? String(e));
+      // Try to load from cache on error
+      const cached = getCachedContent("moltbook", "post", props.postId);
+      if (cached) {
+        setPost(cached.post);
+        setComments(cached.comments ?? []);
+        setUsingCache(true);
+        setError(null);
+      } else {
+        setError(e?.message ?? String(e));
+      }
     }
   }
 
@@ -83,6 +104,22 @@ export function PostView(props: { api: MoltbookApi; postId: string }) {
     void reload();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [props.postId]);
+
+  // Track in watch history when post data is loaded
+  useEffect(() => {
+    if (!post) return;
+    const postAuthor = post.author ? String(post.author.name ?? post.author) : undefined;
+    const historyItem: Parameters<typeof addToHistory>[0] = {
+      id: props.postId,
+      platform: "moltbook",
+      type: "post",
+      title: String(post.title ?? ""),
+    };
+    if (postAuthor) historyItem.author = postAuthor;
+    if (post.url) historyItem.url = String(post.url);
+    if (post.content) historyItem.content = String(post.content).slice(0, 200);
+    addToHistory(historyItem);
+  }, [post, props.postId, addToHistory]);
 
   useEffect(() => {
     // Whenever a new comment list comes in, hydrate known per-comment vote state.
@@ -106,6 +143,11 @@ export function PostView(props: { api: MoltbookApi; postId: string }) {
 
   return (
     <section>
+      {usingCache && (
+        <div style={{ padding: "8px 12px", marginBottom: 12, background: "var(--color-bg-accent)", borderRadius: 6, fontSize: 13 }}>
+          Showing cached version (offline)
+        </div>
+      )}
       <h2>{String(post.title ?? "")}</h2>
       <div style={{ fontSize: 12, opacity: 0.75 }}>
         {postSubmoltName ? (
@@ -210,6 +252,27 @@ export function PostView(props: { api: MoltbookApi; postId: string }) {
         >
           Downvote
         </button>
+        <button
+          onClick={() => {
+            const postSaved = isSaved("moltbook", "post", props.postId);
+            if (postSaved) {
+              unsaveItem("moltbook", "post", props.postId);
+            } else {
+              const item: Parameters<typeof saveItem>[0] = {
+                id: props.postId,
+                platform: "moltbook",
+                type: "post",
+                title: String(post.title ?? ""),
+              };
+              if (post.content) item.content = String(post.content).slice(0, 200);
+              if (postAuthorName) item.author = postAuthorName;
+              if (post.url) item.url = String(post.url);
+              saveItem(item);
+            }
+          }}
+        >
+          {isSaved("moltbook", "post", props.postId) ? "Unsave" : "Save"}
+        </button>
         <a href={`https://www.moltbook.com/post/${encodeURIComponent(props.postId)}`} target="_blank" rel="noreferrer noopener">
           View on Moltbook
         </a>
@@ -307,6 +370,26 @@ export function PostView(props: { api: MoltbookApi; postId: string }) {
                   disabled={!id || votePending}
                 >
                   Upvote
+                </button>
+                <button
+                  onClick={() => {
+                    const commentSaved = isSaved("moltbook", "comment", id);
+                    if (commentSaved) {
+                      unsaveItem("moltbook", "comment", id);
+                    } else {
+                      const item: Parameters<typeof saveItem>[0] = {
+                        id,
+                        platform: "moltbook",
+                        type: "comment",
+                        parentId: props.postId,
+                      };
+                      if (c.content) item.content = String(c.content).slice(0, 200);
+                      if (commentAuthorName) item.author = commentAuthorName;
+                      saveItem(item);
+                    }
+                  }}
+                >
+                  {isSaved("moltbook", "comment", id) ? "Unsave" : "Save"}
                 </button>
               </div>
             </article>

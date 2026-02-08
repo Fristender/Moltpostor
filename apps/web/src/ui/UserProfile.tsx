@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import type { MoltbookApi } from "@moltpostor/api";
 import { isAgentPinned, pinAgent, unpinAgent, isFollowing as isFollowingStored, setFollowing as setFollowingStored, detectFollowStatus } from "./pins";
+import { useAppContext } from "./AppContext";
 
 function normalizePosts(data: any): any[] {
   if (!data) return [];
@@ -11,9 +12,11 @@ function normalizePosts(data: any): any[] {
 }
 
 export function UserProfile(props: { api: MoltbookApi; name: string; onOpenPost: (id: string) => void; onOpenSubmolt: (name: string) => void }) {
+  const { addToHistory, cacheContent, getCachedContent } = useAppContext();
   const [profile, setProfile] = useState<any | null>(null);
   const [recentPosts, setRecentPosts] = useState<any[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [usingCache, setUsingCache] = useState(false);
   const [following, setFollowing] = useState(() => isFollowingStored(props.name));
   const [followBusy, setFollowBusy] = useState(false);
   const [pinned, setPinned] = useState(() => isAgentPinned(props.name));
@@ -23,6 +26,7 @@ export function UserProfile(props: { api: MoltbookApi; name: string; onOpenPost:
     setError(null);
     setProfile(null);
     setRecentPosts([]);
+    setUsingCache(false);
     setPinned(isAgentPinned(props.name));
     setFollowing(isFollowingStored(props.name));
 
@@ -32,18 +36,48 @@ export function UserProfile(props: { api: MoltbookApi; name: string; onOpenPost:
         if (cancelled) return;
         detectFollowStatus(data, props.name);
         setFollowing(isFollowingStored(props.name));
-        setProfile(data.agent ?? data.profile ?? data);
-        setRecentPosts(normalizePosts(data.recentPosts ?? data.posts ?? data));
+        const profileData = data.agent ?? data.profile ?? data;
+        const postsData = normalizePosts(data.recentPosts ?? data.posts ?? data);
+        setProfile(profileData);
+        setRecentPosts(postsData);
+        // Cache for offline access
+        cacheContent({
+          id: props.name,
+          platform: "moltbook",
+          type: "user",
+          data: { profile: profileData, recentPosts: postsData },
+        });
       } catch (e: any) {
         if (cancelled) return;
-        setError(e?.message ?? String(e));
+        // Try to load from cache
+        const cached = getCachedContent("moltbook", "user", props.name);
+        if (cached) {
+          setProfile(cached.profile);
+          setRecentPosts(cached.recentPosts ?? []);
+          setUsingCache(true);
+          setError(null);
+        } else {
+          setError(e?.message ?? String(e));
+        }
       }
     })();
 
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [props.api, props.name]);
+
+  // Track in watch history when profile is loaded
+  useEffect(() => {
+    if (!profile) return;
+    addToHistory({
+      id: props.name,
+      platform: "moltbook",
+      type: "user",
+      name: props.name,
+    });
+  }, [profile, props.name, addToHistory]);
 
   const handleFollow = async () => {
     setFollowBusy(true);
@@ -82,6 +116,11 @@ export function UserProfile(props: { api: MoltbookApi; name: string; onOpenPost:
 
   return (
     <section>
+      {usingCache && (
+        <div style={{ padding: "8px 12px", marginBottom: 12, background: "var(--color-bg-accent)", borderRadius: 6, fontSize: 13 }}>
+          Showing cached version (offline)
+        </div>
+      )}
       <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12 }}>
         <div>
           <h2 style={{ marginBottom: 4 }}>u/{props.name}</h2>

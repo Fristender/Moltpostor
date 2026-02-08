@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import type { MoltbookApi } from "@moltpostor/api";
 import { isSubmoltPinned, pinSubmolt, unpinSubmolt, isSubscribed as isSubscribedStored, setSubscribed as setSubscribedStored, detectSubscribeStatus } from "./pins";
+import { useAppContext } from "./AppContext";
 
 function normalizePosts(data: any): any[] {
   if (!data) return [];
@@ -10,10 +11,12 @@ function normalizePosts(data: any): any[] {
 }
 
 export function SubmoltView(props: { api: MoltbookApi; name: string; onOpenPost: (id: string) => void }) {
+  const { addToHistory, cacheContent, getCachedContent } = useAppContext();
   const [page, setPage] = useState(1);
   const [submolt, setSubmolt] = useState<any | null>(null);
   const [posts, setPosts] = useState<any[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [usingCache, setUsingCache] = useState(false);
   const [subscribed, setSubscribed] = useState(() => isSubscribedStored(props.name));
   const [subBusy, setSubBusy] = useState(false);
   const [pinned, setPinned] = useState(() => isSubmoltPinned(props.name));
@@ -22,6 +25,7 @@ export function SubmoltView(props: { api: MoltbookApi; name: string; onOpenPost:
     setPage(1);
     setPinned(isSubmoltPinned(props.name));
     setSubscribed(isSubscribedStored(props.name));
+    setUsingCache(false);
   }, [props.name]);
 
   useEffect(() => {
@@ -33,20 +37,54 @@ export function SubmoltView(props: { api: MoltbookApi; name: string; onOpenPost:
         if (!cancelled) {
           detectSubscribeStatus(s, props.name);
           setSubscribed(isSubscribedStored(props.name));
-          setSubmolt(s.submolt ?? s);
+          const submoltData = s.submolt ?? s;
+          setSubmolt(submoltData);
+          // Cache submolt info
+          const f = await props.api.getSubmoltFeed(props.name, page);
+          if (cancelled) return;
+          const postsData = normalizePosts(f);
+          setPosts(postsData);
+          setUsingCache(false);
+          // Cache for offline access
+          cacheContent({
+            id: props.name,
+            platform: "moltbook",
+            type: "submolt",
+            data: { submolt: submoltData, posts: postsData },
+          });
         }
-        const f = await props.api.getSubmoltFeed(props.name, page);
-        if (cancelled) return;
-        setPosts(normalizePosts(f));
       } catch (e: any) {
         if (cancelled) return;
-        setError(e?.message ?? String(e));
+        // Try to load from cache
+        const cached = getCachedContent("moltbook", "submolt", props.name);
+        if (cached) {
+          setSubmolt(cached.submolt);
+          setPosts(cached.posts ?? []);
+          setUsingCache(true);
+          setError(null);
+        } else {
+          setError(e?.message ?? String(e));
+        }
       }
     })();
     return () => {
       cancelled = true;
     };
   }, [page, props.api, props.name]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+
+  // Track in watch history when submolt is loaded
+  useEffect(() => {
+    if (!submolt) return;
+    const historyItem: Parameters<typeof addToHistory>[0] = {
+      id: props.name,
+      platform: "moltbook",
+      type: "submolt",
+      name: props.name,
+    };
+    if (submolt.display_name) historyItem.title = String(submolt.display_name);
+    addToHistory(historyItem);
+  }, [submolt, props.name, addToHistory]);
 
   const handleSubscribe = async () => {
     setSubBusy(true);
@@ -81,6 +119,11 @@ export function SubmoltView(props: { api: MoltbookApi; name: string; onOpenPost:
 
   return (
     <section>
+      {usingCache && (
+        <div style={{ padding: "8px 12px", marginBottom: 12, background: "var(--color-bg-accent)", borderRadius: 6, fontSize: 13 }}>
+          Showing cached version (offline)
+        </div>
+      )}
       <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12 }}>
         <div>
           <h2 style={{ marginBottom: 4 }}>m/{props.name}</h2>

@@ -15,7 +15,7 @@ import { SettingsPage } from "./SettingsPage";
 import { WatchHistoryPage } from "./WatchHistoryPage";
 import { SavedPage } from "./SavedPage";
 import { useApiKeyStore, type Platform } from "./useApiKeyStore";
-import { useTheme } from "./useTheme";
+import { useSettings } from "./useSettings";
 
 type Page =
   | { kind: "feed" }
@@ -38,6 +38,38 @@ type CachedPage = {
 };
 
 const MENU_PAGES = new Set<string>(["menu", "settings", "watch-history", "saved"]);
+
+// Root pages for each tab (back button disabled at these)
+const TAB_ROOT_PAGES: Record<Tab, string> = {
+  moltbook: "feed",
+  menu: "menu",
+};
+
+// Logical parent mapping: what page should "back" go to?
+function getLogicalParent(page: Page): Page | null {
+  switch (page.kind) {
+    case "feed":
+    case "submolts":
+    case "search":
+    case "compose":
+    case "login":
+      return null; // Root level pages
+    case "submolt":
+      return { kind: "submolts" };
+    case "post":
+      return { kind: "feed" }; // Default to feed, but we'll use the back stack instead
+    case "user":
+      return { kind: "feed" };
+    case "menu":
+      return null; // Root
+    case "settings":
+    case "watch-history":
+    case "saved":
+      return { kind: "menu" };
+    default:
+      return null;
+  }
+}
 
 function tabForPage(page: Page): Tab {
   if (MENU_PAGES.has(page.kind)) return "menu";
@@ -114,7 +146,7 @@ function setRoute(page: Page) {
 const MAX_CACHED_PAGES = 20;
 
 export function App() {
-  useTheme();
+  useSettings();
   const keyStore = useApiKeyStore();
   const [activePlatform, setActivePlatform] = useState<Platform>("moltbook");
 
@@ -150,6 +182,17 @@ export function App() {
     const initial = parseRoute(window.location.hash);
     return MENU_PAGES.has(initial.kind) ? pageKey(initial) : pageKey({ kind: "menu" });
   });
+
+  // Global navigation history (chronological, across all tabs)
+  const [globalHistory, setGlobalHistory] = useState<Page[]>(() => {
+    const initial = parseRoute(window.location.hash);
+    return [initial];
+  });
+  const [globalHistoryIndex, setGlobalHistoryIndex] = useState(0);
+
+  // Per-tab logical back stacks
+  const [platformBackStack, setPlatformBackStack] = useState<Page[]>([]);
+  const [menuBackStack, setMenuBackStack] = useState<Page[]>([]);
 
   // Refs for scroll containers per cached page
   const scrollRefs = useRef<Map<string, HTMLDivElement | null>>(new Map());
@@ -196,15 +239,12 @@ export function App() {
       saveScrollPosition(currentKey, platformCache, setPlatformCache);
     }
 
-    setCurrentPage(next);
-
     if (MENU_PAGES.has(next.kind)) {
-      setActiveMenuKey(nextKey);
+      // Update cache FIRST, then active key to avoid flash
       setMenuCache(prev => {
         const existing = prev.find(c => c.key === nextKey);
         if (existing) {
           if (isBackNav) {
-            // Restore scroll on back navigation
             requestAnimationFrame(() => restoreScrollPosition(nextKey));
           }
           return prev;
@@ -213,8 +253,9 @@ export function App() {
         if (newCache.length > MAX_CACHED_PAGES) newCache.shift();
         return newCache;
       });
+      setActiveMenuKey(nextKey);
     } else {
-      setActivePlatformKey(nextKey);
+      // Update cache FIRST, then active key to avoid flash
       setPlatformCache(prev => {
         const existing = prev.find(c => c.key === nextKey);
         if (existing) {
@@ -227,12 +268,17 @@ export function App() {
         if (newCache.length > MAX_CACHED_PAGES) newCache.shift();
         return newCache;
       });
+      setActivePlatformKey(nextKey);
     }
+
+    setCurrentPage(next);
 
     if (nextTab !== prevTab && isBackNav) {
       requestAnimationFrame(() => restoreScrollPosition(nextKey));
     }
   }, [currentPage, activeMenuKey, activePlatformKey, menuCache, platformCache, saveScrollPosition, restoreScrollPosition]);
+
+  const isPrevNextRef = useRef(false);
 
   useEffect(() => {
     const onChange = () => {
@@ -240,25 +286,115 @@ export function App() {
         navigatingRef.current = false;
         return;
       }
-      // This is a browser back/forward navigation
+      
       const next = parseRoute(window.location.hash);
       if (next.kind === "compose" && !apiKey) {
         setRoute({ kind: "login" });
         applyPage({ kind: "login" }, true);
         return;
       }
-      applyPage(next, true);
+      
+      // If this is from Prev/Next buttons, don't add to history
+      if (isPrevNextRef.current) {
+        isPrevNextRef.current = false;
+        applyPage(next, true);
+        return;
+      }
+      
+      // This is a link click or browser navigation - add to global history
+      setGlobalHistory(prev => {
+        const truncated = prev.slice(0, globalHistoryIndex + 1);
+        return [...truncated, next];
+      });
+      setGlobalHistoryIndex(prev => prev + 1);
+      
+      applyPage(next, false);
     };
     window.addEventListener("hashchange", onChange);
     if (!window.location.hash) setRoute(apiKey ? { kind: "feed" } : { kind: "login" });
     return () => window.removeEventListener("hashchange", onChange);
-  }, [apiKey, applyPage]);
+  }, [apiKey, applyPage, globalHistoryIndex]);
 
-  const navigate = useCallback((p: Page) => {
+  const navigate = useCallback((p: Page, options?: { isBack?: boolean; isPrevNext?: boolean; isTabSwitch?: boolean }) => {
+    const { isBack = false, isPrevNext = false, isTabSwitch = false } = options ?? {};
     navigatingRef.current = true;
     setRoute(p);
+    
+    // Update global history (for all navigation except prev/next which traverses existing history)
+    if (!isPrevNext) {
+      setGlobalHistory(prev => {
+        // If we're not at the end, truncate forward history
+        const truncated = prev.slice(0, globalHistoryIndex + 1);
+        return [...truncated, p];
+      });
+      setGlobalHistoryIndex(prev => prev + 1);
+    }
+    
+    // Update per-tab back stack (only for regular forward navigation within the same tab)
+    if (!isBack && !isPrevNext && !isTabSwitch) {
+      const nextTab = tabForPage(p);
+      if (nextTab === "menu") {
+        setMenuBackStack(prev => [...prev, currentPage]);
+      } else {
+        setPlatformBackStack(prev => [...prev, currentPage]);
+      }
+    }
+    
     applyPage(p, false);
-  }, [applyPage]);
+  }, [applyPage, globalHistoryIndex, currentPage]);
+
+  // Navigation handlers
+  const canGoPrev = globalHistoryIndex > 0;
+  const canGoNext = globalHistoryIndex < globalHistory.length - 1;
+  
+  // Back button: use back stack if available, otherwise use logical parent
+  const currentLogicalParent = getLogicalParent(currentPage);
+  const canGoBack = activeTab === "menu" 
+    ? (menuBackStack.length > 0 || currentLogicalParent !== null)
+    : (platformBackStack.length > 0 || currentLogicalParent !== null);
+
+  const handlePrev = useCallback(() => {
+    if (!canGoPrev) return;
+    const prevPage = globalHistory[globalHistoryIndex - 1];
+    if (prevPage) {
+      setGlobalHistoryIndex(prev => prev - 1);
+      navigatingRef.current = true;
+      setRoute(prevPage);
+      applyPage(prevPage, true);
+    }
+  }, [canGoPrev, globalHistory, globalHistoryIndex, applyPage]);
+
+  const handleNext = useCallback(() => {
+    if (!canGoNext) return;
+    const nextPage = globalHistory[globalHistoryIndex + 1];
+    if (nextPage) {
+      setGlobalHistoryIndex(prev => prev + 1);
+      navigatingRef.current = true;
+      setRoute(nextPage);
+      applyPage(nextPage, true);
+    }
+  }, [canGoNext, globalHistory, globalHistoryIndex, applyPage]);
+
+  const handleBack = useCallback(() => {
+    if (!canGoBack) return;
+    if (activeTab === "menu") {
+      const backPage = menuBackStack[menuBackStack.length - 1];
+      if (backPage) {
+        setMenuBackStack(prev => prev.slice(0, -1));
+        navigate(backPage, { isBack: true });
+      } else if (currentLogicalParent) {
+        navigate(currentLogicalParent, { isBack: true });
+      }
+    } else {
+      const backPage = platformBackStack[platformBackStack.length - 1];
+      if (backPage) {
+        setPlatformBackStack(prev => prev.slice(0, -1));
+        navigate(backPage, { isBack: true });
+      } else if (currentLogicalParent) {
+        navigate(currentLogicalParent, { isBack: true });
+      }
+    }
+  }, [canGoBack, activeTab, menuBackStack, platformBackStack, currentLogicalParent, navigate]);
 
   const handleSwitchTab = useCallback((tab: Tab) => {
     if (tab === activeTab) return;
@@ -272,18 +408,16 @@ export function App() {
 
     if (tab === "menu") {
       const targetPage = menuCache.find(c => c.key === activeMenuKey)?.page ?? { kind: "menu" as const };
-      navigate(targetPage);
+      navigate(targetPage, { isTabSwitch: true });
     } else {
       setActivePlatform(tab);
       const targetPage = platformCache.find(c => c.key === activePlatformKey)?.page ?? { kind: "feed" as const };
-      navigate(targetPage);
+      navigate(targetPage, { isTabSwitch: true });
     }
   }, [activeTab, activeMenuKey, activePlatformKey, menuCache, platformCache, navigate, saveScrollPosition]);
 
   const platformNavigate = useCallback((p: Page) => navigate(p), [navigate]);
   const menuNavigate = useCallback((p: Page) => navigate(p), [navigate]);
-
-  const showHeader = activeTab !== "menu";
 
   const renderPlatformPage = (cached: CachedPage) => {
     const { key, page } = cached;
@@ -381,19 +515,26 @@ export function App() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100vh", fontFamily: "system-ui, sans-serif" }}>
-      {showHeader && (
-        <Header
-          activePlatform={activePlatform}
-          page={platformCache.find(c => c.key === activePlatformKey)?.page ?? { kind: "feed" }}
-          isAuthed={!!apiKey}
-          platformKeys={platformKeys}
-          activeKey={activeKey}
-          onNavigate={(p) => platformNavigate(p as Page)}
-          onSwitchKey={(id) => keyStore.setActiveKey(id)}
-          onRemoveKey={(id) => keyStore.removeKey(id)}
-          onRefresh={() => window.location.reload()}
-        />
-      )}
+      <Header
+        activePlatform={activePlatform}
+        activeTab={activeTab}
+        page={activeTab === "menu" 
+          ? (menuCache.find(c => c.key === activeMenuKey)?.page ?? { kind: "menu" })
+          : (platformCache.find(c => c.key === activePlatformKey)?.page ?? { kind: "feed" })}
+        isAuthed={!!apiKey}
+        platformKeys={platformKeys}
+        activeKey={activeKey}
+        onNavigate={(p) => activeTab === "menu" ? menuNavigate(p as Page) : platformNavigate(p as Page)}
+        onSwitchKey={(id) => keyStore.setActiveKey(id)}
+        onRemoveKey={(id) => keyStore.removeKey(id)}
+        onRefresh={() => window.location.reload()}
+        canGoBack={canGoBack}
+        canGoPrev={canGoPrev}
+        canGoNext={canGoNext}
+        onBack={handleBack}
+        onPrev={handlePrev}
+        onNext={handleNext}
+      />
 
       {/* Platform tab pages */}
       <main style={{ flex: 1, overflow: "hidden", display: activeTab === "menu" ? "none" : "block" }}>
