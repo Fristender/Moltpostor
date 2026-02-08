@@ -1,16 +1,30 @@
 import { useState, useEffect, useCallback } from "react";
 
+export type ThemeSetting = "light" | "dark" | "system";
+export type ResolvedTheme = "light" | "dark";
+
 export type AppSettings = {
-  theme: "light" | "dark";
+  theme: ThemeSetting;
   watchHistoryLimit: number;
 };
 
 const STORAGE_KEY = "moltpostor.settings.v1";
 
 const DEFAULT_SETTINGS: AppSettings = {
-  theme: "light",
+  theme: "system",
   watchHistoryLimit: 10000,
 };
+
+function getSystemTheme(): ResolvedTheme {
+  if (typeof window !== "undefined" && window.matchMedia) {
+    return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  }
+  return "light";
+}
+
+function resolveTheme(theme: ThemeSetting): ResolvedTheme {
+  return theme === "system" ? getSystemTheme() : theme;
+}
 
 function loadSettings(): AppSettings {
   try {
@@ -67,7 +81,7 @@ const DARK_VARS: Record<string, string> = {
   "--color-shadow": "rgba(0,0,0,0.4)",
 };
 
-function applyTheme(theme: "light" | "dark") {
+function applyTheme(theme: ResolvedTheme) {
   const vars = theme === "dark" ? DARK_VARS : LIGHT_VARS;
   const root = document.documentElement;
   root.style.colorScheme = theme;
@@ -98,13 +112,24 @@ export function useSettings() {
   }, []);
 
   useEffect(() => {
-    applyTheme(settings.theme);
+    applyTheme(resolveTheme(settings.theme));
   }, [settings.theme]);
 
   // Apply theme on mount
   useEffect(() => {
-    applyTheme(globalSettings.theme);
+    applyTheme(resolveTheme(globalSettings.theme));
   }, []);
+
+  // Listen for system theme changes when theme is set to "system"
+  useEffect(() => {
+    if (settings.theme !== "system") return;
+    const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+    const handleChange = () => {
+      applyTheme(getSystemTheme());
+    };
+    mediaQuery.addEventListener("change", handleChange);
+    return () => mediaQuery.removeEventListener("change", handleChange);
+  }, [settings.theme]);
 
   const updateSettings = useCallback((updates: Partial<AppSettings>) => {
     globalSettings = { ...globalSettings, ...updates };
@@ -112,7 +137,7 @@ export function useSettings() {
     notifyListeners();
   }, []);
 
-  const setTheme = useCallback((theme: "light" | "dark") => {
+  const setTheme = useCallback((theme: ThemeSetting) => {
     updateSettings({ theme });
   }, [updateSettings]);
 

@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { useSettings } from "./useSettings";
+import { useSettings, type ThemeSetting } from "./useSettings";
 import { useAppContext } from "./AppContext";
 
 export function SettingsPage() {
@@ -37,13 +37,14 @@ export function SettingsPage() {
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: 12, border: "1px solid var(--color-border)", borderRadius: 8 }}>
           <div>
             <div style={{ fontWeight: 600 }}>Theme</div>
-            <div style={{ fontSize: 13, opacity: 0.7 }}>Switch between light and dark mode</div>
+            <div style={{ fontSize: 13, opacity: 0.7 }}>Switch between light, dark, or system default</div>
           </div>
           <select
             value={settings.theme}
-            onChange={(e) => setTheme(e.target.value as "light" | "dark")}
+            onChange={(e) => setTheme(e.target.value as ThemeSetting)}
             style={{ padding: "4px 8px", borderRadius: 4 }}
           >
+            <option value="system">System</option>
             <option value="light">Light</option>
             <option value="dark">Dark</option>
           </select>
