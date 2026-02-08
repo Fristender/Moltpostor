@@ -219,17 +219,19 @@ export function Header(props: HeaderProps) {
           {menuOpen && (
             <div
               style={{
-                position: "absolute",
-                right: 0,
-                top: "100%",
+                position: "fixed",
+                top: "auto",
+                left: 16,
+                right: 16,
                 marginTop: 4,
                 background: "var(--color-bg-surface)",
                 border: "1px solid var(--color-border-strong)",
                 borderRadius: 6,
                 boxShadow: "0 4px 12px var(--color-shadow)",
-                minWidth: 220,
+                maxWidth: 280,
                 zIndex: 100,
                 padding: 8,
+                boxSizing: "border-box",
               }}
             >
               {props.platformKeys.length > 0 && (
