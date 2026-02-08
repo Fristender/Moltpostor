@@ -6,6 +6,8 @@ export type Tab = Platform | "menu";
 type TabBarProps = {
   activeTab: Tab;
   onSwitchTab: (tab: Tab) => void;
+  markdownEnabled: boolean;
+  onToggleMarkdown: () => void;
 };
 
 const TABS: { id: Tab; label: string }[] = [
@@ -43,6 +45,21 @@ export function TabBar(props: TabBarProps) {
           {t.label}
         </button>
       ))}
+      <button
+        onClick={props.onToggleMarkdown}
+        title={props.markdownEnabled ? "Markdown enabled (click to show raw)" : "Markdown disabled (click to enable)"}
+        style={{
+          padding: "6px 12px",
+          borderRadius: 6,
+          background: props.markdownEnabled ? "var(--color-bg-accent)" : "transparent",
+          border: props.markdownEnabled ? "1px solid var(--color-border-strong)" : "1px solid var(--color-border)",
+          cursor: "pointer",
+          fontWeight: props.markdownEnabled ? 700 : 400,
+          fontSize: 12,
+        }}
+      >
+        MD
+      </button>
     </nav>
   );
 }

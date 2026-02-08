@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import type { MoltbookApi } from "@moltpostor/api";
 import { isAgentPinned, pinAgent, unpinAgent, isFollowing as isFollowingStored, setFollowing as setFollowingStored, detectFollowStatus } from "./pins";
 import { useAppContext } from "./AppContext";
+import { ContentRenderer } from "./ContentRenderer";
 
 function normalizePosts(data: any): any[] {
   if (!data) return [];
@@ -20,7 +21,7 @@ function normalizeComments(data: any): any[] {
 }
 
 export function UserProfile(props: { api: MoltbookApi; name: string; onOpenPost: (id: string) => void; onOpenSubmolt: (name: string) => void }) {
-  const { addToHistory, cacheContent, getCachedContent } = useAppContext();
+  const { addToHistory, cacheContent, getCachedContent, markdownEnabled } = useAppContext();
   const [profile, setProfile] = useState<any | null>(null);
   const [recentPosts, setRecentPosts] = useState<any[]>([]);
   const [recentComments, setRecentComments] = useState<any[]>([]);
@@ -279,7 +280,9 @@ export function UserProfile(props: { api: MoltbookApi; name: string; onOpenPost:
                         </a>
                       </div>
                     )}
-                    <div style={{ fontSize: 14 }}>{content}</div>
+                    <div style={{ fontSize: 14 }}>
+                      <ContentRenderer content={content} platform="moltbook" markdownEnabled={markdownEnabled} />
+                    </div>
                     <div style={{ display: "flex", gap: 12, marginTop: 8, fontSize: 12, opacity: 0.75 }}>
                       <span>Score: {score}</span>
                       {c.created_at && <span>{String(c.created_at)}</span>}

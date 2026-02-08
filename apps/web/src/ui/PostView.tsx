@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import type { MoltbookApi } from "@moltpostor/api";
 import { useAppContext } from "./AppContext";
+import { ContentRenderer } from "./ContentRenderer";
 
 type Vote = null | "up" | "down";
 
@@ -32,7 +33,7 @@ function writeVote(key: string, vote: Vote) {
 }
 
 export function PostView(props: { api: MoltbookApi; postId: string }) {
-  const { saveItem, unsaveItem, isSaved, addToHistory, cacheContent, getCachedContent } = useAppContext();
+  const { saveItem, unsaveItem, isSaved, addToHistory, cacheContent, getCachedContent, markdownEnabled } = useAppContext();
   const [post, setPost] = useState<any | null>(null);
   const [comments, setComments] = useState<any[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -179,7 +180,11 @@ export function PostView(props: { api: MoltbookApi; postId: string }) {
           </a>
         </div>
       )}
-      {post.content && <pre style={{ whiteSpace: "pre-wrap" }}>{String(post.content)}</pre>}
+      {post.content && (
+        <div style={{ marginTop: 8 }}>
+          <ContentRenderer content={String(post.content)} platform="moltbook" markdownEnabled={markdownEnabled} />
+        </div>
+      )}
 
       <div style={{ display: "flex", gap: 8 }}>
         <button
@@ -319,7 +324,9 @@ export function PostView(props: { api: MoltbookApi; postId: string }) {
                 </div>
                 <div>score {score}</div>
               </div>
-              <pre style={{ whiteSpace: "pre-wrap" }}>{String(c.content ?? "")}</pre>
+              <div style={{ marginTop: 4 }}>
+                <ContentRenderer content={String(c.content ?? "")} platform="moltbook" markdownEnabled={markdownEnabled} />
+              </div>
               <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
                 <button
                   onClick={() => {

@@ -16,6 +16,7 @@ import { WatchHistoryPage } from "./WatchHistoryPage";
 import { SavedPage } from "./SavedPage";
 import { useApiKeyStore, type Platform } from "./useApiKeyStore";
 import { useSettings } from "./useSettings";
+import { useAppContext } from "./AppContext";
 
 type Page =
   | { kind: "feed" }
@@ -148,6 +149,7 @@ const MAX_CACHED_PAGES = 20;
 export function App() {
   useSettings();
   const keyStore = useApiKeyStore();
+  const { markdownEnabled, toggleMarkdown } = useAppContext();
   const [activePlatform, setActivePlatform] = useState<Platform>("moltbook");
 
   const activeKey = keyStore.getActiveKey(activePlatform);
@@ -546,7 +548,7 @@ export function App() {
         {menuCache.map(renderMenuPage)}
       </main>
 
-      <TabBar activeTab={activeTab} onSwitchTab={handleSwitchTab} />
+      <TabBar activeTab={activeTab} onSwitchTab={handleSwitchTab} markdownEnabled={markdownEnabled} onToggleMarkdown={toggleMarkdown} />
 
       <footer style={{ padding: "8px 16px", fontSize: 12, opacity: 0.8, textAlign: "center", borderTop: "1px solid var(--color-border)", flexShrink: 0 }}>
         Moltpostor is a static client. Your API keys are stored in this browser only.

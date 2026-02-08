@@ -2,6 +2,7 @@ import React, { createContext, useContext, type ReactNode } from "react";
 import { useSavedItems, type SavedItem, type SavedItemType } from "./useSavedItems";
 import { useWatchHistory, type WatchHistoryItem } from "./useWatchHistory";
 import { useContentCache } from "./useContentCache";
+import { useDisplaySettings } from "./useDisplaySettings";
 
 type AppContextValue = {
   // Saved items
@@ -22,6 +23,9 @@ type AppContextValue = {
   cacheContent: (item: { id: string; platform: string; type: "post" | "user" | "submolt"; data: any }) => void;
   getCachedContent: (platform: string, type: string, id: string) => any | null;
   clearContentCache: () => void;
+  // Display settings
+  markdownEnabled: boolean;
+  toggleMarkdown: () => void;
 };
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -30,6 +34,7 @@ export function AppContextProvider({ children }: { children: ReactNode }) {
   const saved = useSavedItems();
   const history = useWatchHistory();
   const contentCache = useContentCache();
+  const display = useDisplaySettings();
 
   const value: AppContextValue = {
     saveItem: saved.saveItem,
@@ -47,6 +52,8 @@ export function AppContextProvider({ children }: { children: ReactNode }) {
     cacheContent: contentCache.cacheContent,
     getCachedContent: contentCache.getCachedContent,
     clearContentCache: contentCache.clearCache,
+    markdownEnabled: display.markdownEnabled,
+    toggleMarkdown: display.toggleMarkdown,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
