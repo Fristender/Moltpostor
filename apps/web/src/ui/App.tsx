@@ -40,12 +40,6 @@ type CachedPage = {
 
 const MENU_PAGES = new Set<string>(["menu", "settings", "watch-history", "saved"]);
 
-// Root pages for each tab (back button disabled at these)
-const TAB_ROOT_PAGES: Record<Tab, string> = {
-  moltbook: "feed",
-  menu: "menu",
-};
-
 // Logical parent mapping: what page should "back" go to?
 function getLogicalParent(page: Page): Page | null {
   switch (page.kind) {

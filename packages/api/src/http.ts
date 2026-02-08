@@ -49,7 +49,7 @@ export class MoltbookHttpClient {
     }, this.timeoutMs);
     try {
       return await fetch(url, { ...init, headers, signal: controller.signal });
-    } catch (e: any) {
+    } catch (e: unknown) {
       // Some browsers ignore the abort reason and produce an unhelpful error message.
       if (timedOut) throw timeoutErr;
       throw e;

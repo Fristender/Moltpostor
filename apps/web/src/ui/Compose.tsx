@@ -1,9 +1,10 @@
 import React, { useEffect, useRef, useState } from "react";
 import { HttpError, type MoltbookApi } from "@moltpostor/api";
+import type { MoltbookPostResponse } from "@moltpostor/core";
 import { debugTextFromError, parseJsonBody } from "./errors";
 
-function extractPostId(res: any): string | null {
-  const id = res?.post?.id ?? res?.id ?? res?.post_id ?? null;
+function extractPostId(res: MoltbookPostResponse): string | null {
+  const id = res?.post?.id ?? null;
   return id ? String(id) : null;
 }
 
@@ -120,7 +121,7 @@ export function Compose(props: { api: MoltbookApi; onCreated: (postId: string) =
             const postId = extractPostId(res);
             if (postId) props.onCreated(postId);
             else setError({ user: "Post created but no post id returned by API.", debug: JSON.stringify(res, null, 2) });
-          } catch (e: any) {
+          } catch (e: unknown) {
             if (e instanceof HttpError) {
               setError({
                 user: postErrorUserMessage(e, submolt.trim() || null),

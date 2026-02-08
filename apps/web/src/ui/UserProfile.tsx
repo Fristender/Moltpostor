@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from "react";
 import type { MoltbookApi } from "@moltpostor/api";
+import type { MoltbookAgent, MoltbookPost, MoltbookComment, MoltbookAgentResponse } from "@moltpostor/core";
 import { isAgentPinned, pinAgent, unpinAgent, isFollowing as isFollowingStored, setFollowing as setFollowingStored, detectFollowStatus } from "./pins";
 import { useAppContext } from "./AppContext";
 import { ContentRenderer } from "./ContentRenderer";
 
-function normalizePosts(data: any): any[] {
+function normalizePosts(data: MoltbookAgentResponse | MoltbookPost[] | null): MoltbookPost[] {
   if (!data) return [];
   if (Array.isArray(data)) return data;
   if (Array.isArray(data.posts)) return data.posts;
@@ -12,7 +13,7 @@ function normalizePosts(data: any): any[] {
   return [];
 }
 
-function normalizeComments(data: any): any[] {
+function normalizeComments(data: MoltbookAgentResponse | MoltbookComment[] | null): MoltbookComment[] {
   if (!data) return [];
   if (Array.isArray(data)) return data;
   if (Array.isArray(data.comments)) return data.comments;
@@ -22,9 +23,9 @@ function normalizeComments(data: any): any[] {
 
 export function UserProfile(props: { api: MoltbookApi; name: string; onOpenPost: (id: string) => void; onOpenSubmolt: (name: string) => void }) {
   const { addToHistory, cacheContent, getCachedContent, markdownEnabled } = useAppContext();
-  const [profile, setProfile] = useState<any | null>(null);
-  const [recentPosts, setRecentPosts] = useState<any[]>([]);
-  const [recentComments, setRecentComments] = useState<any[]>([]);
+  const [profile, setProfile] = useState<MoltbookAgent | null>(null);
+  const [recentPosts, setRecentPosts] = useState<MoltbookPost[]>([]);
+  const [recentComments, setRecentComments] = useState<MoltbookComment[]>([]);
   const [activeTab, setActiveTab] = useState<"posts" | "comments">("posts");
   const [error, setError] = useState<string | null>(null);
   const [usingCache, setUsingCache] = useState(false);
@@ -48,9 +49,9 @@ export function UserProfile(props: { api: MoltbookApi; name: string; onOpenPost:
         if (cancelled) return;
         detectFollowStatus(data, props.name);
         setFollowing(isFollowingStored(props.name));
-        const profileData = data.agent ?? data.profile ?? data;
-        const postsData = normalizePosts(data.recentPosts ?? data.posts ?? data);
-        const commentsData = normalizeComments(data.recentComments ?? data.comments ?? []);
+        const profileData = (data.agent ?? data.profile ?? data) as MoltbookAgent;
+        const postsData = normalizePosts(data);
+        const commentsData = normalizeComments(data);
         setProfile(profileData);
         setRecentPosts(postsData);
         setRecentComments(commentsData);
@@ -61,18 +62,18 @@ export function UserProfile(props: { api: MoltbookApi; name: string; onOpenPost:
           type: "user",
           data: { profile: profileData, recentPosts: postsData, recentComments: commentsData },
         });
-      } catch (e: any) {
+      } catch (e: unknown) {
         if (cancelled) return;
         // Try to load from cache
         const cached = getCachedContent("moltbook", "user", props.name);
         if (cached) {
-          setProfile(cached.profile);
-          setRecentPosts(cached.recentPosts ?? []);
-          setRecentComments(cached.recentComments ?? []);
+          setProfile(cached.profile as MoltbookAgent);
+          setRecentPosts((cached.recentPosts as MoltbookPost[]) ?? []);
+          setRecentComments((cached.recentComments as MoltbookComment[]) ?? []);
           setUsingCache(true);
           setError(null);
         } else {
-          setError(e?.message ?? String(e));
+          setError(e instanceof Error ? e.message : String(e));
         }
       }
     })();
@@ -108,8 +109,8 @@ export function UserProfile(props: { api: MoltbookApi; name: string; onOpenPost:
         setFollowingStored(props.name, isNowFollowing);
         setFollowing(isNowFollowing);
       }
-    } catch (e: any) {
-      setError(e?.message ?? String(e));
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e));
     } finally {
       setFollowBusy(false);
     }
@@ -207,7 +208,7 @@ export function UserProfile(props: { api: MoltbookApi; name: string; onOpenPost:
             {recentPosts.map((p) => {
               const id = String(p.id ?? "");
               const score = (p.upvotes ?? 0) - (p.downvotes ?? 0);
-              const subName = p.submolt ? String(p.submolt.name ?? p.submolt) : "";
+              const subName = p.submolt ? (typeof p.submolt === "string" ? p.submolt : p.submolt.name ?? "") : "";
               return (
                 <article key={id || Math.random()} style={{ border: "1px solid #ddd", borderRadius: 8, padding: 12 }}>
                   <div style={{ display: "flex", gap: 8, justifyContent: "space-between" }}>

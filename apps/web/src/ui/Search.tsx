@@ -1,12 +1,13 @@
 import React, { useEffect, useMemo, useState } from "react";
 import type { MoltbookApi } from "@moltpostor/api";
+import type { MoltbookPost, MoltbookAgent, MoltbookSubmolt, MoltbookComment, MoltbookSearchResponse } from "@moltpostor/core";
 
-function asArray(x: any): any[] {
+function asArray<T>(x: T[] | null | undefined): T[] {
   if (!x) return [];
   return Array.isArray(x) ? x : [];
 }
 
-function splitSearchResults(data: any): { posts: any[]; agents: any[]; submolts: any[]; comments: any[] } {
+function splitSearchResults(data: MoltbookSearchResponse | null): { posts: MoltbookPost[]; agents: MoltbookAgent[]; submolts: MoltbookSubmolt[]; comments: MoltbookComment[] } {
   // Moltbook's /search currently returns either:
   // - { posts, agents, submolts } (what moltbook-frontend expects), OR
   // - { results: [{ type: 'post'|'comment'|'agent'|'submolt', ... }], ... } (what the API actually returns today)
@@ -23,10 +24,10 @@ function splitSearchResults(data: any): { posts: any[]; agents: any[]; submolts:
   if (!results.length) return { posts: [], agents: [], submolts: [], comments: [] };
 
   return {
-    posts: results.filter((r) => r?.type === "post"),
-    agents: results.filter((r) => r?.type === "agent"),
-    submolts: results.filter((r) => r?.type === "submolt"),
-    comments: results.filter((r) => r?.type === "comment"),
+    posts: results.filter((r) => r?.type === "post") as unknown as MoltbookPost[],
+    agents: results.filter((r) => r?.type === "agent") as unknown as MoltbookAgent[],
+    submolts: results.filter((r) => r?.type === "submolt") as unknown as MoltbookSubmolt[],
+    comments: results.filter((r) => r?.type === "comment") as unknown as MoltbookComment[],
   };
 }
 
@@ -39,7 +40,7 @@ export function Search(props: {
   onOpenUser: (name: string) => void;
 }) {
   const [query, setQuery] = useState(props.initialQuery);
-  const [results, setResults] = useState<any | null>(null);
+  const [results, setResults] = useState<MoltbookSearchResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -65,9 +66,9 @@ export function Search(props: {
         const data = await props.api.search(q, { limit: 25 });
         if (cancelled) return;
         setResults(data);
-      } catch (e: any) {
+      } catch (e: unknown) {
         if (cancelled) return;
-        setError(e?.message ?? String(e));
+        setError(e instanceof Error ? e.message : String(e));
         setResults(null);
       } finally {
         if (!cancelled) setLoading(false);
@@ -114,8 +115,8 @@ export function Search(props: {
             {posts.map((p) => {
               const id = String(p.post_id ?? p.id ?? "");
               const title = String(p.title ?? "");
-              const subName = p.submolt ? String(p.submolt.name ?? p.submolt) : String(p.submoltName ?? p.submolt ?? "");
-              const authorName = p.author ? String(p.author.name ?? p.author) : String(p.authorName ?? "");
+              const subName = p.submolt ? (typeof p.submolt === "string" ? p.submolt : p.submolt.name ?? "") : String(p.submoltName ?? "");
+              const authorName = p.author ? (typeof p.author === "string" ? p.author : p.author.name ?? "") : String(p.authorName ?? "");
               const score = (p.upvotes ?? p.score ?? 0) - (p.downvotes ?? 0);
               return (
                 <article key={id || `${title}-${Math.random()}`} style={{ border: "1px solid #ddd", borderRadius: 8, padding: 12 }}>
@@ -180,7 +181,7 @@ export function Search(props: {
             {comments.map((c) => {
               const id = String(c.id ?? "");
               const postId = String(c.post_id ?? c.postId ?? "");
-              const authorName = c.author ? String(c.author.name ?? c.author) : String(c.authorName ?? "");
+              const authorName = c.author ? (typeof c.author === "string" ? c.author : c.author.name ?? "") : String(c.authorName ?? "");
               return (
                 <article key={id || `${postId}-${Math.random()}`} style={{ border: "1px solid #ddd", borderRadius: 8, padding: 12 }}>
                   <div style={{ fontSize: 12, opacity: 0.75 }}>

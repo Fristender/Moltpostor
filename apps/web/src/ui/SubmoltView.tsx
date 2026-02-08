@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from "react";
 import type { MoltbookApi } from "@moltpostor/api";
+import type { MoltbookPost, MoltbookSubmolt, MoltbookFeedResponse } from "@moltpostor/core";
 import { isSubmoltPinned, pinSubmolt, unpinSubmolt, isSubscribed as isSubscribedStored, setSubscribed as setSubscribedStored, detectSubscribeStatus } from "./pins";
 import { useAppContext } from "./AppContext";
 
-function normalizePosts(data: any): any[] {
+function normalizePosts(data: MoltbookFeedResponse | MoltbookPost[] | null): MoltbookPost[] {
   if (!data) return [];
   if (Array.isArray(data)) return data;
   if (Array.isArray(data.posts)) return data.posts;
@@ -13,8 +14,8 @@ function normalizePosts(data: any): any[] {
 export function SubmoltView(props: { api: MoltbookApi; name: string; onOpenPost: (id: string) => void }) {
   const { addToHistory, cacheContent, getCachedContent } = useAppContext();
   const [page, setPage] = useState(1);
-  const [submolt, setSubmolt] = useState<any | null>(null);
-  const [posts, setPosts] = useState<any[]>([]);
+  const [submolt, setSubmolt] = useState<MoltbookSubmolt | null>(null);
+  const [posts, setPosts] = useState<MoltbookPost[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [usingCache, setUsingCache] = useState(false);
   const [subscribed, setSubscribed] = useState(() => isSubscribedStored(props.name));
@@ -37,7 +38,7 @@ export function SubmoltView(props: { api: MoltbookApi; name: string; onOpenPost:
         if (!cancelled) {
           detectSubscribeStatus(s, props.name);
           setSubscribed(isSubscribedStored(props.name));
-          const submoltData = s.submolt ?? s;
+          const submoltData = (s.submolt ?? s) as MoltbookSubmolt;
           setSubmolt(submoltData);
           // Cache submolt info
           const f = await props.api.getSubmoltFeed(props.name, page);
@@ -53,17 +54,17 @@ export function SubmoltView(props: { api: MoltbookApi; name: string; onOpenPost:
             data: { submolt: submoltData, posts: postsData },
           });
         }
-      } catch (e: any) {
+      } catch (e: unknown) {
         if (cancelled) return;
         // Try to load from cache
         const cached = getCachedContent("moltbook", "submolt", props.name);
         if (cached) {
-          setSubmolt(cached.submolt);
-          setPosts(cached.posts ?? []);
+          setSubmolt(cached.submolt as MoltbookSubmolt);
+          setPosts((cached.posts as MoltbookPost[]) ?? []);
           setUsingCache(true);
           setError(null);
         } else {
-          setError(e?.message ?? String(e));
+          setError(e instanceof Error ? e.message : String(e));
         }
       }
     })();
@@ -100,8 +101,8 @@ export function SubmoltView(props: { api: MoltbookApi; name: string; onOpenPost:
         setSubscribedStored(props.name, isNowSubscribed);
         setSubscribed(isNowSubscribed);
       }
-    } catch (e: any) {
-      setError(e?.message ?? String(e));
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e));
     } finally {
       setSubBusy(false);
     }
@@ -150,7 +151,7 @@ export function SubmoltView(props: { api: MoltbookApi; name: string; onOpenPost:
         {posts.map((p) => {
           const id = String(p.id ?? "");
           const score = (p.upvotes ?? 0) - (p.downvotes ?? 0);
-          const authorName = p.author ? String(p.author.name ?? p.author) : "";
+          const authorName = p.author ? (typeof p.author === "string" ? p.author : p.author.name ?? "") : "";
           return (
             <article key={id} style={{ border: "1px solid #ddd", borderRadius: 8, padding: 12 }}>
               <div style={{ display: "flex", gap: 8, justifyContent: "space-between" }}>

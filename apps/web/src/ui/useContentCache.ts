@@ -4,7 +4,7 @@ export type CachedContent = {
   id: string;
   platform: string;
   type: "post" | "user" | "submolt";
-  data: any;
+  data: Record<string, unknown>;
   cachedAt: number;
 };
 
@@ -56,7 +56,7 @@ export function useContentCache() {
     });
   }, []);
 
-  const getCachedContent = useCallback((platform: string, type: string, id: string): any | null => {
+  const getCachedContent = useCallback((platform: string, type: string, id: string): Record<string, unknown> | null => {
     const key = cacheKey(platform, type, id);
     const item = cache.find(c => cacheKey(c.platform, c.type, c.id) === key);
     if (item && Date.now() - item.cachedAt < CACHE_TTL_MS) {

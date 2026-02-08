@@ -9,9 +9,9 @@ export function debugTextFromError(e: unknown): string {
   return String(e);
 }
 
-export function parseJsonBody(bodyText: string): any | null {
+export function parseJsonBody(bodyText: string): Record<string, unknown> | null {
   try {
-    return JSON.parse(bodyText);
+    return JSON.parse(bodyText) as Record<string, unknown>;
   } catch {
     return null;
   }

@@ -151,7 +151,7 @@ export function Login(props: { api: MoltbookApi; onSetKey: (key: string, label: 
                       if (agent?.claim_url) out.claimUrl = String(agent.claim_url);
                       if (agent?.verification_code) out.verificationCode = String(agent.verification_code);
                       setRegistered(out);
-                    } catch (e: any) {
+                    } catch (e: unknown) {
                       if (e instanceof HttpError) {
                         const reasons = registerErrorReasons(e.status);
                         const msg =

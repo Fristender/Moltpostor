@@ -1,8 +1,21 @@
 import { MoltbookHttpClient } from "./http";
+import type {
+  MoltbookFeedResponse,
+  MoltbookPost,
+  MoltbookSubmolt,
+  MoltbookSubmoltsResponse,
+  MoltbookSubmoltResponse,
+  MoltbookPostResponse,
+  MoltbookCommentsResponse,
+  MoltbookSearchResponse,
+  MoltbookAgentResponse,
+  MoltbookRegisterResponse,
+  MoltbookActionResponse,
+} from "@moltpostor/core";
 
 export const DEFAULT_MOLTBOOK_BASE_URL = "https://www.moltbook.com/api/v1";
 
-export type FeedResponse = { posts: any[] } | any[];
+export type FeedResponse = MoltbookFeedResponse | MoltbookPost[];
 
 export class MoltbookApi {
   private readonly http: MoltbookHttpClient;
@@ -13,12 +26,12 @@ export class MoltbookApi {
 
   // Auth / registration (no API key required)
   registerAgent(data: { name: string; description: string }) {
-    return this.http.postJson<any>("/agents/register", data);
+    return this.http.postJson<MoltbookRegisterResponse>("/agents/register", data);
   }
 
   // Agents
   getAgentProfile(name: string) {
-    return this.http.getJson<any>(`/agents/profile?name=${encodeURIComponent(name)}`);
+    return this.http.getJson<MoltbookAgentResponse>(`/agents/profile?name=${encodeURIComponent(name)}`);
   }
 
   // Feed
@@ -34,60 +47,60 @@ export class MoltbookApi {
 
   // Submolts
   listSubmolts(page = 1) {
-    return this.http.getJson<any>(`/submolts?page=${page}`);
+    return this.http.getJson<MoltbookSubmoltsResponse | MoltbookSubmolt[]>(`/submolts?page=${page}`);
   }
   getSubmolt(name: string) {
-    return this.http.getJson<any>(`/submolts/${encodeURIComponent(name)}`);
+    return this.http.getJson<MoltbookSubmoltResponse>(`/submolts/${encodeURIComponent(name)}`);
   }
   createSubmolt(data: { name: string; display_name: string; description: string }) {
-    return this.http.postJson<any>("/submolts", data);
+    return this.http.postJson<MoltbookSubmoltResponse>("/submolts", data);
   }
 
   // Posts & comments
   getPost(id: string) {
-    return this.http.getJson<any>(`/posts/${encodeURIComponent(id)}`);
+    return this.http.getJson<MoltbookPostResponse>(`/posts/${encodeURIComponent(id)}`);
   }
   getComments(postId: string) {
-    return this.http.getJson<any>(`/posts/${encodeURIComponent(postId)}/comments`);
+    return this.http.getJson<MoltbookCommentsResponse | MoltbookCommentsResponse["comments"]>(`/posts/${encodeURIComponent(postId)}/comments`);
   }
   createPost(data: { title: string; content?: string; url?: string; submolt?: string }) {
-    return this.http.postJson<any>("/posts", data);
+    return this.http.postJson<MoltbookPostResponse>("/posts", data);
   }
   createComment(postId: string, data: { content: string; parent_id?: string }) {
-    return this.http.postJson<any>(`/posts/${encodeURIComponent(postId)}/comments`, data);
+    return this.http.postJson<MoltbookCommentsResponse>(`/posts/${encodeURIComponent(postId)}/comments`, data);
   }
   upvotePost(id: string) {
-    return this.http.postJson<any>(`/posts/${encodeURIComponent(id)}/upvote`);
+    return this.http.postJson<MoltbookActionResponse>(`/posts/${encodeURIComponent(id)}/upvote`);
   }
   downvotePost(id: string) {
-    return this.http.postJson<any>(`/posts/${encodeURIComponent(id)}/downvote`);
+    return this.http.postJson<MoltbookActionResponse>(`/posts/${encodeURIComponent(id)}/downvote`);
   }
   upvoteComment(commentId: string) {
-    return this.http.postJson<any>(`/comments/${encodeURIComponent(commentId)}/upvote`);
+    return this.http.postJson<MoltbookActionResponse>(`/comments/${encodeURIComponent(commentId)}/upvote`);
   }
 
   // Search
   search(query: string, options: { limit?: number } = {}) {
     const q = query.trim();
     const limit = options.limit ?? 25;
-    return this.http.getJson<any>(`/search?q=${encodeURIComponent(q)}&limit=${encodeURIComponent(String(limit))}`);
+    return this.http.getJson<MoltbookSearchResponse>(`/search?q=${encodeURIComponent(q)}&limit=${encodeURIComponent(String(limit))}`);
   }
 
   // Follow/Unfollow agents
   followAgent(name: string) {
-    return this.http.postJson<any>(`/agents/${encodeURIComponent(name)}/follow`);
+    return this.http.postJson<MoltbookActionResponse>(`/agents/${encodeURIComponent(name)}/follow`);
   }
 
   unfollowAgent(name: string) {
-    return this.http.deleteJson<any>(`/agents/${encodeURIComponent(name)}/follow`);
+    return this.http.deleteJson<MoltbookActionResponse>(`/agents/${encodeURIComponent(name)}/follow`);
   }
 
   // Subscribe/Unsubscribe submolts
   subscribeSubmolt(name: string) {
-    return this.http.postJson<any>(`/submolts/${encodeURIComponent(name)}/subscribe`);
+    return this.http.postJson<MoltbookActionResponse>(`/submolts/${encodeURIComponent(name)}/subscribe`);
   }
 
   unsubscribeSubmolt(name: string) {
-    return this.http.deleteJson<any>(`/submolts/${encodeURIComponent(name)}/subscribe`);
+    return this.http.deleteJson<MoltbookActionResponse>(`/submolts/${encodeURIComponent(name)}/subscribe`);
   }
 }

@@ -15,7 +15,7 @@ const md = new MarkdownIt({
   breaks: true,
 });
 
-const IMAGE_URL_REGEX = /https?:\/\/[^\s<>"'\)]+\.(?:png|jpg|jpeg|gif|webp|svg)(?:\?[^\s<>"'\)]*)?/gi;
+const IMAGE_URL_REGEX = /https?:\/\/[^\s<>"']+\.(?:png|jpg|jpeg|gif|webp|svg)(?:\?[^\s<>"']*)?/gi;
 
 function linkifyImages(text: string): string {
   // Skip URLs already in markdown image/link syntax: ![...](url) or [text](url)

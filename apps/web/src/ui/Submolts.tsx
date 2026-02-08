@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { HttpError, type MoltbookApi } from "@moltpostor/api";
+import type { MoltbookSubmolt, MoltbookSubmoltsResponse } from "@moltpostor/core";
 
-function normalizeSubmolts(data: any): any[] {
+function normalizeSubmolts(data: MoltbookSubmoltsResponse | MoltbookSubmolt[] | null): MoltbookSubmolt[] {
   if (!data) return [];
   if (Array.isArray(data)) return data;
   if (Array.isArray(data.submolts)) return data.submolts;
@@ -20,7 +21,7 @@ function createErrorMessage(e: unknown): string {
 
 export function Submolts(props: { api: MoltbookApi; isAuthed: boolean; onOpenSubmolt: (name: string) => void }) {
   const [page, setPage] = useState(1);
-  const [items, setItems] = useState<any[]>([]);
+  const [items, setItems] = useState<MoltbookSubmolt[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [createError, setCreateError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -36,9 +37,9 @@ export function Submolts(props: { api: MoltbookApi; isAuthed: boolean; onOpenSub
         const data = await props.api.listSubmolts(page);
         if (cancelled) return;
         setItems(normalizeSubmolts(data));
-      } catch (e: any) {
+      } catch (e: unknown) {
         if (cancelled) return;
-        setError(e?.message ?? String(e));
+        setError(e instanceof Error ? e.message : String(e));
       }
     })();
     return () => {
@@ -110,7 +111,7 @@ export function Submolts(props: { api: MoltbookApi; isAuthed: boolean; onOpenSub
                     setPage(1);
                     const data = await props.api.listSubmolts(1);
                     setItems(normalizeSubmolts(data));
-                  } catch (e: any) {
+                  } catch (e: unknown) {
                     setCreateError(createErrorMessage(e));
                   } finally {
                     setBusy(false);

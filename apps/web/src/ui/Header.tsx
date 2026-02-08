@@ -2,14 +2,16 @@ import React, { useRef, useState, useEffect } from "react";
 import type { Platform, StoredApiKey } from "./useApiKeyStore";
 import type { Tab } from "./TabBar";
 
+type PageType = { kind: string; [k: string]: unknown };
+
 type HeaderProps = {
   activePlatform: Platform;
   activeTab: Tab;
-  page: { kind: string; [k: string]: any };
+  page: PageType;
   isAuthed: boolean;
   platformKeys: StoredApiKey[];
   activeKey: StoredApiKey | null;
-  onNavigate: (page: { kind: string; [k: string]: any }) => void;
+  onNavigate: (page: PageType) => void;
   onSwitchKey: (id: string) => void;
   onRemoveKey: (id: string) => void;
   onRefresh: () => void;
@@ -22,7 +24,7 @@ type HeaderProps = {
   onNext: () => void;
 };
 
-type NavPage = { kind: string; [k: string]: any };
+type NavPage = { kind: string; [k: string]: unknown };
 
 const PLATFORM_NAV: Record<Platform, { label: string; page: NavPage }[]> = {
   moltbook: [

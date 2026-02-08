@@ -20,8 +20,8 @@ type AppContextValue = {
   clearHistory: () => void;
   trimHistory: (limit: number) => void;
   // Content cache
-  cacheContent: (item: { id: string; platform: string; type: "post" | "user" | "submolt"; data: any }) => void;
-  getCachedContent: (platform: string, type: string, id: string) => any | null;
+  cacheContent: (item: { id: string; platform: string; type: "post" | "user" | "submolt"; data: Record<string, unknown> }) => void;
+  getCachedContent: (platform: string, type: string, id: string) => Record<string, unknown> | null;
   clearContentCache: () => void;
   // Display settings
   markdownEnabled: boolean;

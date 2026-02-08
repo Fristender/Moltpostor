@@ -1,3 +1,5 @@
+import type { MoltbookAgentResponse, MoltbookSubmoltResponse } from "@moltpostor/core";
+
 const PINNED_AGENTS_KEY = "moltpostor.pinnedAgents.v1";
 const PINNED_SUBMOLTS_KEY = "moltpostor.pinnedSubmolts.v1";
 const FOLLOWING_KEY = "moltpostor.following.v1";
@@ -93,18 +95,18 @@ export function setSubscribed(name: string, subscribed: boolean): void {
 }
 
 /** Extract follow status from an API agent/profile response if available. */
-export function detectFollowStatus(data: any, agentName: string): void {
-  const agent = data?.agent ?? data?.profile ?? data;
-  const status = agent?.is_following ?? agent?.you_follow ?? data?.is_following ?? data?.you_follow;
+export function detectFollowStatus(data: MoltbookAgentResponse, agentName: string): void {
+  const agent = data?.agent ?? data?.profile;
+  const status = agent?.is_following ?? data?.is_following;
   if (typeof status === "boolean") {
     setFollowing(agentName, status);
   }
 }
 
 /** Extract subscribe status from an API submolt response if available. */
-export function detectSubscribeStatus(data: any, submoltName: string): void {
-  const submolt = data?.submolt ?? data;
-  const status = submolt?.is_subscribed ?? submolt?.you_subscribed ?? data?.is_subscribed ?? data?.you_subscribed;
+export function detectSubscribeStatus(data: MoltbookSubmoltResponse, submoltName: string): void {
+  const submolt = data?.submolt;
+  const status = submolt?.is_subscribed ?? data?.is_subscribed;
   if (typeof status === "boolean") {
     setSubscribed(submoltName, status);
   }

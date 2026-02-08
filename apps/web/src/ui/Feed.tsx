@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from "react";
 import type { MoltbookApi } from "@moltpostor/api";
+import type { MoltbookPost, MoltbookFeedResponse } from "@moltpostor/core";
 import { getPinnedAgents, getPinnedSubmolts } from "./pins";
 
-function normalizePosts(data: any): any[] {
+function normalizePosts(data: MoltbookFeedResponse | MoltbookPost[] | null): MoltbookPost[] {
   if (!data) return [];
   if (Array.isArray(data)) return data;
   if (Array.isArray(data.posts)) return data.posts;
@@ -11,7 +12,7 @@ function normalizePosts(data: any): any[] {
 
 export function Feed(props: { api: MoltbookApi; isAuthed: boolean; onOpenPost: (id: string) => void; onOpenSubmolt: (name: string) => void }) {
   const [page, setPage] = useState(1);
-  const [posts, setPosts] = useState<any[]>([]);
+  const [posts, setPosts] = useState<MoltbookPost[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -22,9 +23,9 @@ export function Feed(props: { api: MoltbookApi; isAuthed: boolean; onOpenPost: (
         const data = props.isAuthed ? await props.api.getPersonalizedFeed(page) : await props.api.getGlobalFeed(page);
         if (cancelled) return;
         setPosts(normalizePosts(data));
-      } catch (e: any) {
+      } catch (e: unknown) {
         if (cancelled) return;
-        setError(e?.message ?? String(e));
+        setError(e instanceof Error ? e.message : String(e));
       }
     })();
     return () => {
@@ -73,8 +74,8 @@ export function Feed(props: { api: MoltbookApi; isAuthed: boolean; onOpenPost: (
         {posts.map((p) => {
           const id = String(p.id ?? "");
           const score = (p.upvotes ?? 0) - (p.downvotes ?? 0);
-          const subName = p.submolt ? String(p.submolt.name ?? p.submolt) : "";
-          const authorName = p.author ? String(p.author.name ?? p.author) : "";
+          const subName = p.submolt ? (typeof p.submolt === "string" ? p.submolt : p.submolt.name ?? "") : "";
+          const authorName = p.author ? (typeof p.author === "string" ? p.author : p.author.name ?? "") : "";
           return (
             <article key={id} style={{ border: "1px solid #ddd", borderRadius: 8, padding: 12 }}>
               <div style={{ display: "flex", gap: 8, justifyContent: "space-between" }}>

@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import type { MoltbookApi } from "@moltpostor/api";
+import type { MoltbookPost, MoltbookComment } from "@moltpostor/core";
 import { useAppContext } from "./AppContext";
 import { ContentRenderer } from "./ContentRenderer";
 
@@ -34,8 +35,8 @@ function writeVote(key: string, vote: Vote) {
 
 export function PostView(props: { api: MoltbookApi; postId: string }) {
   const { saveItem, unsaveItem, isSaved, addToHistory, cacheContent, getCachedContent, markdownEnabled } = useAppContext();
-  const [post, setPost] = useState<any | null>(null);
-  const [comments, setComments] = useState<any[] | null>(null);
+  const [post, setPost] = useState<MoltbookPost | null>(null);
+  const [comments, setComments] = useState<MoltbookComment[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [usingCache, setUsingCache] = useState(false);
   const [comment, setComment] = useState("");
@@ -67,8 +68,8 @@ export function PostView(props: { api: MoltbookApi; postId: string }) {
       if (seq !== reloadSeqRef.current) return;
       setError(null);
       setUsingCache(false);
-      const postData = p.post ?? p;
-      const commentList = Array.isArray(c) ? c : (c.comments ?? c ?? []);
+      const postData = (p.post ?? p) as MoltbookPost;
+      const commentList = (Array.isArray(c) ? c : (c?.comments ?? [])) as MoltbookComment[];
       setPost(postData);
       setComments(commentList);
       // Cache the content for offline access
@@ -78,17 +79,17 @@ export function PostView(props: { api: MoltbookApi; postId: string }) {
         type: "post",
         data: { post: postData, comments: commentList },
       });
-    } catch (e: any) {
+    } catch (e: unknown) {
       if (seq !== reloadSeqRef.current) return;
       // Try to load from cache on error
       const cached = getCachedContent("moltbook", "post", props.postId);
       if (cached) {
-        setPost(cached.post);
-        setComments(cached.comments ?? []);
+        setPost(cached.post as MoltbookPost);
+        setComments((cached.comments as MoltbookComment[]) ?? []);
         setUsingCache(true);
         setError(null);
       } else {
-        setError(e?.message ?? String(e));
+        setError(e instanceof Error ? e.message : String(e));
       }
     }
   }
@@ -109,7 +110,7 @@ export function PostView(props: { api: MoltbookApi; postId: string }) {
   // Track in watch history when post data is loaded
   useEffect(() => {
     if (!post) return;
-    const postAuthor = post.author ? String(post.author.name ?? post.author) : undefined;
+    const postAuthor = post.author ? (typeof post.author === "string" ? post.author : post.author.name ?? "") : undefined;
     const historyItem: Parameters<typeof addToHistory>[0] = {
       id: props.postId,
       platform: "moltbook",
@@ -139,8 +140,8 @@ export function PostView(props: { api: MoltbookApi; postId: string }) {
   if (!post) return <div>Loading...</div>;
 
   const score = (post.upvotes ?? 0) - (post.downvotes ?? 0);
-  const postAuthorName = post.author ? String(post.author.name ?? post.author) : "";
-  const postSubmoltName = post.submolt ? String(post.submolt.name ?? post.submolt) : "";
+  const postAuthorName = post.author ? (typeof post.author === "string" ? post.author : post.author.name ?? "") : "";
+  const postSubmoltName = post.submolt ? (typeof post.submolt === "string" ? post.submolt : post.submolt.name ?? "") : "";
 
   return (
     <section>
@@ -194,7 +195,7 @@ export function PostView(props: { api: MoltbookApi; postId: string }) {
             const prevMyVote = postMyVote;
             setPostVotePending("up");
 
-            setPost((p: any) => {
+            setPost((p: MoltbookPost | null) => {
               if (!p) return p;
               const up = p.upvotes ?? 0;
               const down = p.downvotes ?? 0;
@@ -229,7 +230,7 @@ export function PostView(props: { api: MoltbookApi; postId: string }) {
             const prevMyVote = postMyVote;
             setPostVotePending("down");
 
-            setPost((p: any) => {
+            setPost((p: MoltbookPost | null) => {
               if (!p) return p;
               const up = p.upvotes ?? 0;
               const down = p.downvotes ?? 0;
@@ -300,7 +301,7 @@ export function PostView(props: { api: MoltbookApi; postId: string }) {
               setComment("");
               return reload();
             })
-            .catch((e) => setError(String(e?.message ?? e)));
+            .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)));
         }}
         disabled={!comment.trim()}
       >
@@ -313,7 +314,7 @@ export function PostView(props: { api: MoltbookApi; postId: string }) {
           const score = (c.upvotes ?? 0) - (c.downvotes ?? 0);
           const votePending = !!commentVotePending[id];
           const myVote = commentMyVote[id] ?? null;
-          const commentAuthorName = c.author ? String(c.author.name ?? c.author) : "";
+          const commentAuthorName = c.author ? (typeof c.author === "string" ? c.author : c.author.name ?? "") : "";
 
           return (
             <article key={id} style={{ border: "1px solid #ddd", borderRadius: 8, padding: 12 }}>
@@ -363,7 +364,7 @@ export function PostView(props: { api: MoltbookApi; postId: string }) {
                           return next;
                         });
                         writeVote(commentVoteKey(id), prevMyVote === "up" ? "up" : null);
-                        setError(String(e?.message ?? e));
+                        setError(e instanceof Error ? e.message : String(e));
                       })
                       .finally(() => {
                         setCommentVotePending((m) => {

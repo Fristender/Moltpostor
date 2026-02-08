@@ -11,5 +11,8 @@
     "build": "npm run typecheck",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint ."
+  },
+  "devDependencies": {
+    "typescript-eslint": "^8.54.0"
   }
 }
