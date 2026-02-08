@@ -1,5 +1,5 @@
 import React, { useMemo, useRef, useState, useCallback, useEffect } from "react";
-import { MoltbookApi, MoltbookHttpClient, DEFAULT_MOLTBOOK_BASE_URL } from "@moltpostor/api";
+import { MoltbookApi, MoltbookHttpClient, DEFAULT_MOLTBOOK_BASE_URL, MoltXApi, DEFAULT_MOLTX_BASE_URL } from "@moltpostor/api";
 import { Feed } from "./Feed";
 import { Login } from "./Login";
 import { Submolts } from "./Submolts";
@@ -17,6 +17,19 @@ import { SavedPage } from "./SavedPage";
 import { useApiKeyStore, type Platform } from "./useApiKeyStore";
 import { useSettings } from "./useSettings";
 import { useAppContext } from "./AppContext";
+import {
+  MoltXFeed,
+  MoltXPostView,
+  MoltXProfile,
+  MoltXCompose,
+  MoltXSearch,
+  MoltXNotifications,
+  MoltXLeaderboard,
+  MoltXLogin,
+  MoltXHashtagFeed,
+  MoltXWalletLink,
+  useMoltXWalletStatus,
+} from "./moltx";
 
 type Page =
   | { kind: "feed" }
@@ -30,7 +43,17 @@ type Page =
   | { kind: "menu" }
   | { kind: "settings" }
   | { kind: "watch-history" }
-  | { kind: "saved" };
+  | { kind: "saved" }
+  // MoltX pages
+  | { kind: "moltx-feed" }
+  | { kind: "moltx-post"; id: string }
+  | { kind: "moltx-user"; name: string }
+  | { kind: "moltx-search"; q: string }
+  | { kind: "moltx-compose" }
+  | { kind: "moltx-login"; initialMode?: "import" | "register" }
+  | { kind: "moltx-notifications" }
+  | { kind: "moltx-leaderboard" }
+  | { kind: "moltx-hashtag"; tag: string };
 
 type CachedPage = {
   key: string;
@@ -39,6 +62,7 @@ type CachedPage = {
 };
 
 const MENU_PAGES = new Set<string>(["menu", "settings", "watch-history", "saved"]);
+const MOLTX_PAGES = new Set<string>(["moltx-feed", "moltx-post", "moltx-user", "moltx-search", "moltx-compose", "moltx-login", "moltx-notifications", "moltx-leaderboard", "moltx-hashtag"]);
 
 // Logical parent mapping: what page should "back" go to?
 function getLogicalParent(page: Page): Page | null {
@@ -61,6 +85,19 @@ function getLogicalParent(page: Page): Page | null {
     case "watch-history":
     case "saved":
       return { kind: "menu" };
+    // MoltX pages
+    case "moltx-feed":
+    case "moltx-search":
+    case "moltx-compose":
+    case "moltx-login":
+    case "moltx-notifications":
+    case "moltx-leaderboard":
+    case "moltx-hashtag":
+      return null; // Root level MoltX pages
+    case "moltx-post":
+      return { kind: "moltx-feed" };
+    case "moltx-user":
+      return { kind: "moltx-feed" };
     default:
       return null;
   }
@@ -68,6 +105,7 @@ function getLogicalParent(page: Page): Page | null {
 
 function tabForPage(page: Page): Tab {
   if (MENU_PAGES.has(page.kind)) return "menu";
+  if (MOLTX_PAGES.has(page.kind)) return "moltx";
   return "moltbook";
 }
 
@@ -85,6 +123,16 @@ function pageKey(page: Page): string {
     case "settings": return "settings";
     case "watch-history": return "watch-history";
     case "saved": return "saved";
+    // MoltX pages
+    case "moltx-feed": return "moltx-feed";
+    case "moltx-post": return `moltx-post:${page.id}`;
+    case "moltx-user": return `moltx-user:${page.name}`;
+    case "moltx-search": return `moltx-search:${page.q}`;
+    case "moltx-compose": return "moltx-compose";
+    case "moltx-login": return "moltx-login";
+    case "moltx-notifications": return "moltx-notifications";
+    case "moltx-leaderboard": return "moltx-leaderboard";
+    case "moltx-hashtag": return `moltx-hashtag:${page.tag}`;
   }
 }
 
@@ -113,6 +161,19 @@ function parseRoute(hash: string): Page {
   if (parts[0] === "settings") return { kind: "settings" };
   if (parts[0] === "watch-history") return { kind: "watch-history" };
   if (parts[0] === "saved") return { kind: "saved" };
+  // MoltX routes
+  if (parts[0] === "moltx") {
+    if (parts.length === 1 || parts[1] === "feed") return { kind: "moltx-feed" };
+    if (parts[1] === "post" && parts[2]) return { kind: "moltx-post", id: decodeURIComponent(parts[2]) };
+    if (parts[1] === "user" && parts[2]) return { kind: "moltx-user", name: decodeURIComponent(parts[2]) };
+    if (parts[1] === "search") return { kind: "moltx-search", q: params.get("q")?.trim() ?? "" };
+    if (parts[1] === "compose") return { kind: "moltx-compose" };
+    if (parts[1] === "login") return { kind: "moltx-login" };
+    if (parts[1] === "notifications") return { kind: "moltx-notifications" };
+    if (parts[1] === "leaderboard") return { kind: "moltx-leaderboard" };
+    if (parts[1] === "hashtag" && parts[2]) return { kind: "moltx-hashtag", tag: decodeURIComponent(parts[2]) };
+    return { kind: "moltx-feed" };
+  }
 
   return { kind: "feed" };
 }
@@ -131,6 +192,16 @@ function pageToHash(page: Page): string {
     case "settings": return "#/settings";
     case "watch-history": return "#/watch-history";
     case "saved": return "#/saved";
+    // MoltX routes
+    case "moltx-feed": return "#/moltx/feed";
+    case "moltx-post": return `#/moltx/post/${encodeURIComponent(page.id)}`;
+    case "moltx-user": return `#/moltx/user/${encodeURIComponent(page.name)}`;
+    case "moltx-search": return page.q ? `#/moltx/search?q=${encodeURIComponent(page.q)}` : "#/moltx/search";
+    case "moltx-compose": return "#/moltx/compose";
+    case "moltx-login": return "#/moltx/login";
+    case "moltx-notifications": return "#/moltx/notifications";
+    case "moltx-leaderboard": return "#/moltx/leaderboard";
+    case "moltx-hashtag": return `#/moltx/hashtag/${encodeURIComponent(page.tag)}`;
   }
 }
 
@@ -143,8 +214,11 @@ const MAX_CACHED_PAGES = 20;
 export function App() {
   useSettings();
   const keyStore = useApiKeyStore();
-  const { markdownEnabled, toggleMarkdown } = useAppContext();
-  const [activePlatform, setActivePlatform] = useState<Platform>("moltbook");
+  const { markdownEnabled, toggleMarkdown, saveItem, unsaveItem, isSaved } = useAppContext();
+  const [activePlatform, setActivePlatform] = useState<Platform>(() => {
+    const initial = parseRoute(window.location.hash);
+    return MOLTX_PAGES.has(initial.kind) ? "moltx" : "moltbook";
+  });
 
   const activeKey = keyStore.getActiveKey(activePlatform);
   const apiKey = activeKey?.key ?? null;
@@ -200,6 +274,73 @@ export function App() {
     });
     return new MoltbookApi(http);
   }, [apiKey]);
+
+  // MoltX API
+  const moltxApiKey = keyStore.getActiveKey("moltx")?.key ?? null;
+  const moltxApi = useMemo(() => {
+    const http = new MoltbookHttpClient({
+      baseUrl: DEFAULT_MOLTX_BASE_URL,
+      getApiKey: () => moltxApiKey,
+    });
+    return new MoltXApi(http);
+  }, [moltxApiKey]);
+
+  // Wallet linking modal state
+  const [showWalletLink, setShowWalletLink] = useState(false);
+  const [walletLinkKeyId, setWalletLinkKeyId] = useState<string | null>(null);
+  const walletStatus = useMoltXWalletStatus();
+
+  const handleLinkWallet = useCallback((keyId: string) => {
+    setWalletLinkKeyId(keyId);
+    setShowWalletLink(true);
+  }, []);
+
+  // Check wallet status for a MoltX key from API
+  const checkWalletStatus = useCallback(async (keyId: string, apiKey: string) => {
+    try {
+      const http = new MoltbookHttpClient({
+        baseUrl: DEFAULT_MOLTX_BASE_URL,
+        getApiKey: () => apiKey,
+      });
+      const api = new MoltXApi(http);
+      const res = await api.getMyProfile();
+      const agent = res.agent;
+      if (agent?.metadata) {
+        try {
+          const meta = typeof agent.metadata === "string" ? JSON.parse(agent.metadata) : agent.metadata;
+          if (meta?.evm_wallet?.address) {
+            walletStatus.setWalletStatus(
+              keyId,
+              meta.evm_wallet.address,
+              meta.evm_wallet.chain_id ?? null,
+              meta.evm_wallet.verified_at ?? null
+            );
+            return true;
+          }
+        } catch { /* ignore parse errors */ }
+      }
+      walletStatus.setWalletStatus(keyId, null, null, null);
+      return false;
+    } catch {
+      return false;
+    }
+  }, [walletStatus]);
+
+  // Check wallet status for all MoltX keys on mount
+  useEffect(() => {
+    const moltxKeys = keyStore.getKeysForPlatform("moltx");
+    moltxKeys.forEach((k) => {
+      const existing = walletStatus.getWalletStatus(k.id);
+      // Only check if not checked in the last hour
+      if (!existing || Date.now() - existing.checkedAt > 3600000) {
+        checkWalletStatus(k.id, k.key);
+      }
+    });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const getWalletAddress = useCallback((keyId: string): string | null => {
+    return walletStatus.getWalletStatus(keyId)?.address ?? null;
+  }, [walletStatus]);
 
   const navigatingRef = useRef(false);
 
@@ -405,19 +546,27 @@ export function App() {
     if (tab === "menu") {
       const targetPage = menuCache.find(c => c.key === activeMenuKey)?.page ?? { kind: "menu" as const };
       navigate(targetPage, { isTabSwitch: true });
+    } else if (tab === "moltx") {
+      setActivePlatform("moltx");
+      const moltxPage = platformCache.find(c => c.key.startsWith("moltx-"))?.page ?? { kind: "moltx-feed" as const };
+      navigate(moltxPage, { isTabSwitch: true });
     } else {
       setActivePlatform(tab);
-      const targetPage = platformCache.find(c => c.key === activePlatformKey)?.page ?? { kind: "feed" as const };
+      const targetPage = platformCache.find(c => c.key === activePlatformKey && !c.key.startsWith("moltx-"))?.page ?? { kind: "feed" as const };
       navigate(targetPage, { isTabSwitch: true });
     }
   }, [activeTab, activeMenuKey, activePlatformKey, menuCache, platformCache, navigate, saveScrollPosition]);
 
   const platformNavigate = useCallback((p: Page) => navigate(p), [navigate]);
   const menuNavigate = useCallback((p: Page) => navigate(p), [navigate]);
+  const moltxNavigate = useCallback((p: Page) => navigate(p), [navigate]);
 
   const renderPlatformPage = (cached: CachedPage) => {
     const { key, page } = cached;
-    const isActive = key === activePlatformKey && activeTab !== "menu";
+    const isMoltxPage = MOLTX_PAGES.has(page.kind);
+    const isActive = key === activePlatformKey && activeTab !== "menu" && (
+      (activeTab === "moltx" && isMoltxPage) || (activeTab === "moltbook" && !isMoltxPage)
+    );
     return (
       <div
         key={key}
@@ -430,12 +579,13 @@ export function App() {
         }}
       >
         <div style={{ maxWidth: 900, margin: "0 auto", paddingBottom: 24 }}>
+          {/* Moltbook pages */}
           {page.kind === "login" && (
             <Login
               api={api}
               {...(page.initialMode ? { initialMode: page.initialMode } : {})}
               onSetKey={(k, label) => {
-                keyStore.addKey(activePlatform, label, k);
+                keyStore.addKey("moltbook", label, k);
                 platformNavigate({ kind: "feed" });
               }}
             />
@@ -478,6 +628,100 @@ export function App() {
               api={api}
               {...(page.submolt ? { initialSubmolt: page.submolt } : {})}
               onCreated={(postId) => platformNavigate({ kind: "post", id: postId })}
+            />
+          )}
+          {/* MoltX pages */}
+          {page.kind === "moltx-login" && (
+            <MoltXLogin
+              api={moltxApi}
+              {...(page.initialMode ? { initialMode: page.initialMode } : {})}
+              onSetKey={(k, label) => {
+                const keyId = keyStore.addKey("moltx", label, k);
+                // Check wallet status for the new key
+                checkWalletStatus(keyId, k);
+                moltxNavigate({ kind: "moltx-feed" });
+              }}
+            />
+          )}
+          {page.kind === "moltx-feed" && (
+            <MoltXFeed
+              api={moltxApi}
+              isAuthed={!!moltxApiKey}
+              onOpenPost={(id) => moltxNavigate({ kind: "moltx-post", id })}
+              onOpenUser={(name) => moltxNavigate({ kind: "moltx-user", name })}
+              onOpenHashtag={(tag) => moltxNavigate({ kind: "moltx-hashtag", tag })}
+              onCompose={() => moltxNavigate({ kind: "moltx-compose" })}
+              onSavePost={(post) => {
+                if (isSaved("moltx", "post", post.id)) {
+                  unsaveItem("moltx", "post", post.id);
+                } else {
+                  saveItem({
+                    id: post.id,
+                    platform: "moltx",
+                    type: "post",
+                    content: post.content ?? "",
+                    author: post.author?.name ?? post.author_name ?? "",
+                  });
+                }
+              }}
+              isPostSaved={(id) => isSaved("moltx", "post", id)}
+            />
+          )}
+          {page.kind === "moltx-post" && (
+            <MoltXPostView
+              api={moltxApi}
+              postId={page.id}
+              isAuthed={!!moltxApiKey}
+              onOpenPost={(id) => moltxNavigate({ kind: "moltx-post", id })}
+              onOpenUser={(name) => moltxNavigate({ kind: "moltx-user", name })}
+            />
+          )}
+          {page.kind === "moltx-user" && (
+            <MoltXProfile
+              api={moltxApi}
+              name={page.name}
+              isAuthed={!!moltxApiKey}
+              onOpenPost={(id) => moltxNavigate({ kind: "moltx-post", id })}
+              onOpenUser={(name) => moltxNavigate({ kind: "moltx-user", name })}
+            />
+          )}
+          {page.kind === "moltx-search" && (
+            <MoltXSearch
+              api={moltxApi}
+              initialQuery={page.q}
+              isAuthed={!!moltxApiKey}
+              onSetQuery={(q) => moltxNavigate({ kind: "moltx-search", q })}
+              onOpenPost={(id) => moltxNavigate({ kind: "moltx-post", id })}
+              onOpenUser={(name) => moltxNavigate({ kind: "moltx-user", name })}
+            />
+          )}
+          {page.kind === "moltx-compose" && (
+            <MoltXCompose
+              api={moltxApi}
+              onCreated={(postId) => moltxNavigate({ kind: "moltx-post", id: postId })}
+            />
+          )}
+          {page.kind === "moltx-notifications" && (
+            <MoltXNotifications
+              api={moltxApi}
+              onOpenPost={(id) => moltxNavigate({ kind: "moltx-post", id })}
+              onOpenUser={(name) => moltxNavigate({ kind: "moltx-user", name })}
+            />
+          )}
+          {page.kind === "moltx-leaderboard" && (
+            <MoltXLeaderboard
+              api={moltxApi}
+              onOpenUser={(name) => moltxNavigate({ kind: "moltx-user", name })}
+            />
+          )}
+          {page.kind === "moltx-hashtag" && (
+            <MoltXHashtagFeed
+              api={moltxApi}
+              hashtag={page.tag}
+              isAuthed={!!moltxApiKey}
+              onOpenPost={(id) => moltxNavigate({ kind: "moltx-post", id })}
+              onOpenUser={(name) => moltxNavigate({ kind: "moltx-user", name })}
+              onOpenHashtag={(tag) => moltxNavigate({ kind: "moltx-hashtag", tag })}
             />
           )}
         </div>
@@ -524,6 +768,9 @@ export function App() {
         onSwitchKey={(id) => keyStore.setActiveKey(id)}
         onRemoveKey={(id) => keyStore.removeKey(id)}
         onRefresh={() => window.location.reload()}
+        onLinkWallet={handleLinkWallet}
+        isWalletLinked={walletStatus.isWalletLinked}
+        getWalletAddress={getWalletAddress}
         canGoBack={canGoBack}
         canGoPrev={canGoPrev}
         canGoNext={canGoNext}
@@ -547,6 +794,28 @@ export function App() {
       <footer style={{ padding: "8px 16px", fontSize: 12, opacity: 0.8, textAlign: "center", borderTop: "1px solid var(--color-border)", flexShrink: 0 }}>
         Moltpostor is a static client. Your API keys are stored in this browser only.
       </footer>
+
+      {showWalletLink && walletLinkKeyId && (() => {
+        const selectedKey = keyStore.getKeysForPlatform("moltx").find(k => k.id === walletLinkKeyId);
+        if (!selectedKey) return null;
+        const walletLinkHttp = new MoltbookHttpClient({
+          baseUrl: DEFAULT_MOLTX_BASE_URL,
+          getApiKey: () => selectedKey.key,
+        });
+        const walletLinkApi = new MoltXApi(walletLinkHttp);
+        return (
+          <MoltXWalletLink
+            api={walletLinkApi}
+            onClose={() => { setShowWalletLink(false); setWalletLinkKeyId(null); }}
+            onLinked={() => { 
+              setShowWalletLink(false); 
+              setWalletLinkKeyId(null);
+              // Refresh wallet status after linking
+              checkWalletStatus(selectedKey.id, selectedKey.key);
+            }}
+          />
+        );
+      })()}
     </div>
   );
 }

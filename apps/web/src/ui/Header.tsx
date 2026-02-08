@@ -15,6 +15,9 @@ type HeaderProps = {
   onSwitchKey: (id: string) => void;
   onRemoveKey: (id: string) => void;
   onRefresh: () => void;
+  onLinkWallet?: (keyId: string) => void;
+  isWalletLinked?: (keyId: string) => boolean;
+  getWalletAddress?: (keyId: string) => string | null;
   // Navigation
   canGoBack: boolean;
   canGoPrev: boolean;
@@ -33,9 +36,16 @@ const PLATFORM_NAV: Record<Platform, { label: string; page: NavPage }[]> = {
     { label: "Search", page: { kind: "search", q: "" } },
     { label: "+ Post", page: { kind: "compose" } },
   ],
+  moltx: [
+    { label: "Feed", page: { kind: "moltx-feed" } },
+    { label: "Search", page: { kind: "moltx-search", q: "" } },
+    { label: "Leaderboard", page: { kind: "moltx-leaderboard" } },
+    { label: "Notifications", page: { kind: "moltx-notifications" } },
+    { label: "+ Post", page: { kind: "moltx-compose" } },
+  ],
 };
 
-type GoToType = "post" | "user" | "submolt";
+type GoToType = "post" | "user" | "submolt" | "moltx-post" | "moltx-user";
 
 export function Header(props: HeaderProps) {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -80,6 +90,10 @@ export function Header(props: HeaderProps) {
       props.onNavigate({ kind: "user", name: val });
     } else if (goToType === "submolt") {
       props.onNavigate({ kind: "submolt", name: val });
+    } else if (goToType === "moltx-post") {
+      props.onNavigate({ kind: "moltx-post", id: val });
+    } else if (goToType === "moltx-user") {
+      props.onNavigate({ kind: "moltx-user", name: val });
     }
     setGoToOpen(false);
     setGoToValue("");
@@ -128,12 +142,12 @@ export function Header(props: HeaderProps) {
         </button>
         <div style={{ width: 1, height: 20, background: "var(--color-border)", margin: "0 4px" }} />
         {props.activeTab !== "menu" && navItems.map((item) => {
-          const isCompose = item.page.kind === "compose";
+          const isCompose = item.page.kind === "compose" || item.page.kind === "moltx-compose";
           return (
             <button
               key={item.label}
               onClick={() => {
-                if (isCompose && props.page.kind === "submolt") {
+                if (item.page.kind === "compose" && props.page.kind === "submolt") {
                   props.onNavigate({ kind: "compose", submolt: props.page.name });
                 } else {
                   props.onNavigate(item.page);
@@ -176,21 +190,23 @@ export function Header(props: HeaderProps) {
                     onChange={(e) => setGoToType(e.target.value as GoToType)}
                     style={{ width: "100%", padding: "4px 8px", borderRadius: 4 }}
                   >
-                    <option value="post">Post ID</option>
-                    <option value="user">Username</option>
+                    <option value="post">Moltbook Post ID</option>
+                    <option value="user">Moltbook Username</option>
                     <option value="submolt">Submolt</option>
+                    <option value="moltx-post">MoltX Post ID</option>
+                    <option value="moltx-user">MoltX Agent</option>
                   </select>
                 </div>
                 <div style={{ marginBottom: 8 }}>
                   <label style={{ fontSize: 12, display: "block", marginBottom: 4 }}>
-                    {goToType === "post" ? "Post ID" : goToType === "user" ? "Username" : "Submolt name"}
+                    {goToType === "post" || goToType === "moltx-post" ? "Post ID" : goToType === "user" || goToType === "moltx-user" ? "Username" : "Submolt name"}
                   </label>
                   <input
                     type="text"
                     value={goToValue}
                     onChange={(e) => setGoToValue(e.target.value)}
                     onKeyDown={(e) => { if (e.key === "Enter") handleGoTo(); }}
-                    placeholder={goToType === "post" ? "Enter post ID" : goToType === "user" ? "Enter username" : "Enter submolt name"}
+                    placeholder={goToType === "post" || goToType === "moltx-post" ? "Enter post ID" : goToType === "user" || goToType === "moltx-user" ? "Enter username" : "Enter submolt name"}
                     style={{ width: "100%", padding: "4px 8px", borderRadius: 4, boxSizing: "border-box" }}
                     autoFocus
                   />
@@ -319,6 +335,35 @@ export function Header(props: HeaderProps) {
                           </button>
                         </div>
                       )}
+                      {k.platform === "moltx" && props.onLinkWallet && (() => {
+                        const isLinked = props.isWalletLinked?.(k.id) ?? false;
+                        const walletAddr = props.getWalletAddress?.(k.id);
+                        if (isLinked && walletAddr) {
+                          return (
+                            <div style={{ padding: "2px 4px 4px", fontSize: 11 }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: 4, color: "var(--color-success, green)" }}>
+                                <span>✓</span>
+                                <span style={{ opacity: 0.8 }}>
+                                  {walletAddr.slice(0, 6)}...{walletAddr.slice(-4)}
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        }
+                        return (
+                          <div style={{ padding: "2px 4px 4px" }}>
+                            <button
+                              onClick={() => {
+                                setMenuOpen(false);
+                                props.onLinkWallet!(k.id);
+                              }}
+                              style={{ fontSize: 11, width: "100%", padding: "4px 8px", background: "var(--color-bg-accent)" }}
+                            >
+                              Link Wallet
+                            </button>
+                          </div>
+                        );
+                      })()}
                     </div>
                   ))}
                   <hr style={{ margin: "6px 0" }} />
@@ -328,7 +373,10 @@ export function Header(props: HeaderProps) {
                 <button
                   onClick={() => {
                     setMenuOpen(false);
-                    props.onNavigate({ kind: "login", initialMode: "import" });
+                    const loginPage = props.activePlatform === "moltx" 
+                      ? { kind: "moltx-login", initialMode: "import" as const }
+                      : { kind: "login", initialMode: "import" as const };
+                    props.onNavigate(loginPage);
                   }}
                   style={{ textAlign: "left", padding: "4px 8px" }}
                 >
@@ -337,7 +385,10 @@ export function Header(props: HeaderProps) {
                 <button
                   onClick={() => {
                     setMenuOpen(false);
-                    props.onNavigate({ kind: "login", initialMode: "register" });
+                    const loginPage = props.activePlatform === "moltx"
+                      ? { kind: "moltx-login", initialMode: "register" as const }
+                      : { kind: "login", initialMode: "register" as const };
+                    props.onNavigate(loginPage);
                   }}
                   style={{ textAlign: "left", padding: "4px 8px" }}
                 >

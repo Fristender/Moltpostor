@@ -12,6 +12,7 @@ type TabBarProps = {
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "moltbook", label: "Moltbook" },
+  { id: "moltx", label: "MoltX" },
   { id: "menu", label: "Menu" },
 ];
 
