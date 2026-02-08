@@ -11,10 +11,20 @@ function normalizePosts(data: any): any[] {
   return [];
 }
 
+function normalizeComments(data: any): any[] {
+  if (!data) return [];
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data.comments)) return data.comments;
+  if (Array.isArray(data.recentComments)) return data.recentComments;
+  return [];
+}
+
 export function UserProfile(props: { api: MoltbookApi; name: string; onOpenPost: (id: string) => void; onOpenSubmolt: (name: string) => void }) {
   const { addToHistory, cacheContent, getCachedContent } = useAppContext();
   const [profile, setProfile] = useState<any | null>(null);
   const [recentPosts, setRecentPosts] = useState<any[]>([]);
+  const [recentComments, setRecentComments] = useState<any[]>([]);
+  const [activeTab, setActiveTab] = useState<"posts" | "comments">("posts");
   const [error, setError] = useState<string | null>(null);
   const [usingCache, setUsingCache] = useState(false);
   const [following, setFollowing] = useState(() => isFollowingStored(props.name));
@@ -26,6 +36,7 @@ export function UserProfile(props: { api: MoltbookApi; name: string; onOpenPost:
     setError(null);
     setProfile(null);
     setRecentPosts([]);
+    setRecentComments([]);
     setUsingCache(false);
     setPinned(isAgentPinned(props.name));
     setFollowing(isFollowingStored(props.name));
@@ -38,14 +49,16 @@ export function UserProfile(props: { api: MoltbookApi; name: string; onOpenPost:
         setFollowing(isFollowingStored(props.name));
         const profileData = data.agent ?? data.profile ?? data;
         const postsData = normalizePosts(data.recentPosts ?? data.posts ?? data);
+        const commentsData = normalizeComments(data.recentComments ?? data.comments ?? []);
         setProfile(profileData);
         setRecentPosts(postsData);
+        setRecentComments(commentsData);
         // Cache for offline access
         cacheContent({
           id: props.name,
           platform: "moltbook",
           type: "user",
-          data: { profile: profileData, recentPosts: postsData },
+          data: { profile: profileData, recentPosts: postsData, recentComments: commentsData },
         });
       } catch (e: any) {
         if (cancelled) return;
@@ -54,6 +67,7 @@ export function UserProfile(props: { api: MoltbookApi; name: string; onOpenPost:
         if (cached) {
           setProfile(cached.profile);
           setRecentPosts(cached.recentPosts ?? []);
+          setRecentComments(cached.recentComments ?? []);
           setUsingCache(true);
           setError(null);
         } else {
@@ -153,52 +167,143 @@ export function UserProfile(props: { api: MoltbookApi; name: string; onOpenPost:
 
       <hr />
 
-      <h3>Recent posts</h3>
-      <div style={{ display: "grid", gap: 12 }}>
-        {recentPosts.map((p) => {
-          const id = String(p.id ?? "");
-          const score = (p.upvotes ?? 0) - (p.downvotes ?? 0);
-          const subName = p.submolt ? String(p.submolt.name ?? p.submolt) : "";
-          return (
-            <article key={id || Math.random()} style={{ border: "1px solid #ddd", borderRadius: 8, padding: 12 }}>
-              <div style={{ display: "flex", gap: 8, justifyContent: "space-between" }}>
-                <div>
-                  <div style={{ fontSize: 16, fontWeight: 600 }}>{String(p.title ?? "")}</div>
-                  <div style={{ fontSize: 12, opacity: 0.75 }}>
-                    {subName ? (
-                      <>
+      <div style={{ display: "flex", gap: 0, marginBottom: 16 }}>
+        <button
+          onClick={() => setActiveTab("posts")}
+          style={{
+            padding: "8px 16px",
+            border: "1px solid #ddd",
+            borderBottom: activeTab === "posts" ? "2px solid var(--color-primary, #0066cc)" : "1px solid #ddd",
+            background: activeTab === "posts" ? "var(--color-bg-accent, #f5f5f5)" : "transparent",
+            fontWeight: activeTab === "posts" ? 600 : 400,
+            cursor: "pointer",
+            borderRadius: "4px 0 0 0",
+          }}
+        >
+          Posts
+        </button>
+        <button
+          onClick={() => setActiveTab("comments")}
+          style={{
+            padding: "8px 16px",
+            border: "1px solid #ddd",
+            borderLeft: "none",
+            borderBottom: activeTab === "comments" ? "2px solid var(--color-primary, #0066cc)" : "1px solid #ddd",
+            background: activeTab === "comments" ? "var(--color-bg-accent, #f5f5f5)" : "transparent",
+            fontWeight: activeTab === "comments" ? 600 : 400,
+            cursor: "pointer",
+            borderRadius: "0 4px 0 0",
+          }}
+        >
+          Comments
+        </button>
+      </div>
+
+      {activeTab === "posts" && (
+        <>
+          <h3>Recent posts</h3>
+          <div style={{ display: "grid", gap: 12 }}>
+            {recentPosts.map((p) => {
+              const id = String(p.id ?? "");
+              const score = (p.upvotes ?? 0) - (p.downvotes ?? 0);
+              const subName = p.submolt ? String(p.submolt.name ?? p.submolt) : "";
+              return (
+                <article key={id || Math.random()} style={{ border: "1px solid #ddd", borderRadius: 8, padding: 12 }}>
+                  <div style={{ display: "flex", gap: 8, justifyContent: "space-between" }}>
+                    <div>
+                      <div style={{ fontSize: 16, fontWeight: 600 }}>{String(p.title ?? "")}</div>
+                      <div style={{ fontSize: 12, opacity: 0.75 }}>
+                        {subName ? (
+                          <>
+                            <a
+                              href={`#/m/${encodeURIComponent(subName)}`}
+                              onClick={(e) => {
+                                e.preventDefault();
+                                props.onOpenSubmolt(subName);
+                              }}
+                            >
+                              m/{subName}
+                            </a>
+                            {" - "}
+                          </>
+                        ) : null}
+                        {p.created_at ? String(p.created_at) : ""}
+                      </div>
+                    </div>
+                    <div style={{ minWidth: 80, textAlign: "right" }}>Score: {score}</div>
+                  </div>
+                  <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                    <button onClick={() => props.onOpenPost(id)} disabled={!id}>
+                      Open
+                    </button>
+                    {p.url && (
+                      <a href={String(p.url)} target="_blank" rel="noreferrer noopener">
+                        Link
+                      </a>
+                    )}
+                  </div>
+                </article>
+              );
+            })}
+            {!profile && !error ? <div style={{ opacity: 0.8 }}>Loading...</div> : null}
+            {recentPosts.length === 0 && profile && !error ? <div style={{ opacity: 0.8 }}>No posts found.</div> : null}
+          </div>
+        </>
+      )}
+
+      {activeTab === "comments" && (
+        <>
+          <h3>Recent comments</h3>
+          {recentComments.length > 0 ? (
+            <div style={{ display: "grid", gap: 12 }}>
+              {recentComments.map((c) => {
+                const id = String(c.id ?? "");
+                const postId = String(c.post?.id ?? c.post_id ?? c.postId ?? "");
+                const postTitle = String(c.post?.title ?? c.post_title ?? c.postTitle ?? "");
+                const content = String(c.content ?? c.body ?? "");
+                const score = (c.upvotes ?? 0) - (c.downvotes ?? 0);
+                return (
+                  <article key={id || Math.random()} style={{ border: "1px solid #ddd", borderRadius: 8, padding: 12 }}>
+                    {postTitle && postId && (
+                      <div style={{ fontSize: 12, opacity: 0.75, marginBottom: 4 }}>
+                        on:{" "}
                         <a
-                          href={`#/m/${encodeURIComponent(subName)}`}
+                          href={`#/post/${encodeURIComponent(postId)}`}
                           onClick={(e) => {
                             e.preventDefault();
-                            props.onOpenSubmolt(subName);
+                            props.onOpenPost(postId);
                           }}
+                          style={{ fontWeight: 500 }}
                         >
-                          m/{subName}
+                          {postTitle}
                         </a>
-                        {" - "}
-                      </>
-                    ) : null}
-                    {p.created_at ? String(p.created_at) : ""}
-                  </div>
-                </div>
-                <div style={{ minWidth: 80, textAlign: "right" }}>Score: {score}</div>
-              </div>
-              <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-                <button onClick={() => props.onOpenPost(id)} disabled={!id}>
-                  Open
-                </button>
-                {p.url && (
-                  <a href={String(p.url)} target="_blank" rel="noreferrer noopener">
-                    Link
-                  </a>
-                )}
-              </div>
-            </article>
-          );
-        })}
-        {recentPosts.length === 0 && !error ? <div style={{ opacity: 0.8 }}>No posts found.</div> : null}
-      </div>
+                      </div>
+                    )}
+                    <div style={{ fontSize: 14 }}>{content}</div>
+                    <div style={{ display: "flex", gap: 12, marginTop: 8, fontSize: 12, opacity: 0.75 }}>
+                      <span>Score: {score}</span>
+                      {c.created_at && <span>{String(c.created_at)}</span>}
+                    </div>
+                    {postId && (
+                      <div style={{ marginTop: 8 }}>
+                        <button onClick={() => props.onOpenPost(postId)} style={{ fontSize: 12 }}>
+                          View Post
+                        </button>
+                      </div>
+                    )}
+                  </article>
+                );
+              })}
+            </div>
+          ) : (
+            <div style={{ textAlign: "center", padding: 32, opacity: 0.7 }}>
+              <div style={{ fontSize: 32, marginBottom: 8 }}>💬</div>
+              <div>Comments coming soon</div>
+              <div style={{ fontSize: 12, marginTop: 4 }}>The API does not yet support fetching user comments.</div>
+            </div>
+          )}
+        </>
+      )}
     </section>
   );
 }
