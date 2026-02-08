@@ -33,11 +33,17 @@ const PLATFORM_NAV: Record<Platform, { label: string; page: NavPage }[]> = {
   ],
 };
 
+type GoToType = "post" | "user" | "submolt";
+
 export function Header(props: HeaderProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [confirmRemoveId, setConfirmRemoveId] = useState<string | null>(null);
   const [revealedKeyId, setRevealedKeyId] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const [goToOpen, setGoToOpen] = useState(false);
+  const [goToType, setGoToType] = useState<GoToType>("post");
+  const [goToValue, setGoToValue] = useState("");
+  const goToRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -51,6 +57,31 @@ export function Header(props: HeaderProps) {
     document.addEventListener("mousedown", onClickOutside);
     return () => document.removeEventListener("mousedown", onClickOutside);
   }, [menuOpen]);
+
+  useEffect(() => {
+    if (!goToOpen) return;
+    const onClickOutside = (e: MouseEvent) => {
+      if (goToRef.current && !goToRef.current.contains(e.target as Node)) {
+        setGoToOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onClickOutside);
+    return () => document.removeEventListener("mousedown", onClickOutside);
+  }, [goToOpen]);
+
+  const handleGoTo = () => {
+    const val = goToValue.trim();
+    if (!val) return;
+    if (goToType === "post") {
+      props.onNavigate({ kind: "post", id: val });
+    } else if (goToType === "user") {
+      props.onNavigate({ kind: "user", name: val });
+    } else if (goToType === "submolt") {
+      props.onNavigate({ kind: "submolt", name: val });
+    }
+    setGoToOpen(false);
+    setGoToValue("");
+  };
 
   const navItems = PLATFORM_NAV[props.activePlatform] ?? [];
 
@@ -113,6 +144,62 @@ export function Header(props: HeaderProps) {
             </button>
           );
         })}
+        {props.activeTab !== "menu" && (
+          <div ref={goToRef} style={{ position: "relative" }}>
+            <button onClick={() => setGoToOpen((v) => !v)}>Go to</button>
+            {goToOpen && (
+              <div
+                style={{
+                  position: "absolute",
+                  left: 0,
+                  top: "100%",
+                  marginTop: 4,
+                  background: "var(--color-bg-surface)",
+                  border: "1px solid var(--color-border-strong)",
+                  borderRadius: 6,
+                  boxShadow: "0 4px 12px var(--color-shadow)",
+                  minWidth: 220,
+                  zIndex: 100,
+                  padding: 8,
+                }}
+              >
+                <div style={{ marginBottom: 8 }}>
+                  <label style={{ fontSize: 12, display: "block", marginBottom: 4 }}>Type</label>
+                  <select
+                    value={goToType}
+                    onChange={(e) => setGoToType(e.target.value as GoToType)}
+                    style={{ width: "100%", padding: "4px 8px", borderRadius: 4 }}
+                  >
+                    <option value="post">Post ID</option>
+                    <option value="user">Username</option>
+                    <option value="submolt">Submolt</option>
+                  </select>
+                </div>
+                <div style={{ marginBottom: 8 }}>
+                  <label style={{ fontSize: 12, display: "block", marginBottom: 4 }}>
+                    {goToType === "post" ? "Post ID" : goToType === "user" ? "Username" : "Submolt name"}
+                  </label>
+                  <input
+                    type="text"
+                    value={goToValue}
+                    onChange={(e) => setGoToValue(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") handleGoTo(); }}
+                    placeholder={goToType === "post" ? "Enter post ID" : goToType === "user" ? "Enter username" : "Enter submolt name"}
+                    style={{ width: "100%", padding: "4px 8px", borderRadius: 4, boxSizing: "border-box" }}
+                    autoFocus
+                  />
+                </div>
+                <button
+                  onClick={handleGoTo}
+                  disabled={!goToValue.trim()}
+                  style={{ width: "100%", padding: "6px 8px" }}
+                >
+                  Go
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
