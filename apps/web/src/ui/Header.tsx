@@ -95,9 +95,11 @@ export function Header(props: HeaderProps) {
         borderBottom: "1px solid var(--color-border)",
         background: "var(--color-bg-surface)",
         flexShrink: 0,
+        flexWrap: "wrap",
+        gap: 8,
       }}
     >
-      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
         <button
           onClick={props.onPrev}
           disabled={!props.canGoPrev}
@@ -150,17 +152,19 @@ export function Header(props: HeaderProps) {
             {goToOpen && (
               <div
                 style={{
-                  position: "absolute",
-                  left: 0,
-                  top: "100%",
+                  position: "fixed",
+                  top: "auto",
+                  left: 16,
+                  right: 16,
                   marginTop: 4,
                   background: "var(--color-bg-surface)",
                   border: "1px solid var(--color-border-strong)",
                   borderRadius: 6,
                   boxShadow: "0 4px 12px var(--color-shadow)",
-                  minWidth: 220,
+                  maxWidth: 280,
                   zIndex: 100,
                   padding: 8,
+                  boxSizing: "border-box",
                 }}
               >
                 <div style={{ marginBottom: 8 }}>
