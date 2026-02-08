@@ -52,8 +52,8 @@ export function Header(props: HeaderProps) {
         alignItems: "center",
         justifyContent: "space-between",
         padding: "8px 16px",
-        borderBottom: "1px solid #ddd",
-        background: "#fff",
+        borderBottom: "1px solid var(--color-border)",
+        background: "var(--color-bg-surface)",
         flexShrink: 0,
       }}
     >
@@ -97,10 +97,10 @@ export function Header(props: HeaderProps) {
                 right: 0,
                 top: "100%",
                 marginTop: 4,
-                background: "#fff",
-                border: "1px solid #ccc",
+                background: "var(--color-bg-surface)",
+                border: "1px solid var(--color-border-strong)",
                 borderRadius: 6,
-                boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+                boxShadow: "0 4px 12px var(--color-shadow)",
                 minWidth: 220,
                 zIndex: 100,
                 padding: 8,
@@ -121,7 +121,7 @@ export function Header(props: HeaderProps) {
                           gap: 4,
                           padding: "4px",
                           borderRadius: 4,
-                          background: k.id === props.activeKey?.id ? "#e8e8e8" : "transparent",
+                          background: k.id === props.activeKey?.id ? "var(--color-bg-accent)" : "transparent",
                         }}
                       >
                         <button
@@ -178,7 +178,7 @@ export function Header(props: HeaderProps) {
                       </div>
                       {revealedKeyId === k.id && (
                         <div style={{ display: "flex", alignItems: "center", gap: 4, padding: "2px 4px 4px", fontSize: 11 }}>
-                          <code style={{ flex: 1, wordBreak: "break-all", padding: "2px 4px", background: "#f5f5f5", borderRadius: 3 }}>
+                          <code style={{ flex: 1, wordBreak: "break-all", padding: "2px 4px", background: "var(--color-bg-code)", borderRadius: 3 }}>
                             {k.key}
                           </code>
                           <button

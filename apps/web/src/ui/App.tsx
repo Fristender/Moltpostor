@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import { MoltbookApi, MoltbookHttpClient, DEFAULT_MOLTBOOK_BASE_URL } from "@moltpostor/api";
 import { Feed } from "./Feed";
 import { Login } from "./Login";
@@ -9,8 +9,13 @@ import { Compose } from "./Compose";
 import { UserProfile } from "./UserProfile";
 import { Search } from "./Search";
 import { Header } from "./Header";
-import { TabBar } from "./TabBar";
+import { TabBar, type Tab } from "./TabBar";
+import { MenuPage } from "./MenuPage";
+import { SettingsPage } from "./SettingsPage";
+import { WatchHistoryPage } from "./WatchHistoryPage";
+import { SavedPage } from "./SavedPage";
 import { useApiKeyStore, type Platform } from "./useApiKeyStore";
+import { useTheme } from "./useTheme";
 
 type Page =
   | { kind: "feed" }
@@ -20,7 +25,18 @@ type Page =
   | { kind: "user"; name: string }
   | { kind: "search"; q: string }
   | { kind: "compose"; submolt?: string }
-  | { kind: "login"; initialMode?: "import" | "register" };
+  | { kind: "login"; initialMode?: "import" | "register" }
+  | { kind: "menu" }
+  | { kind: "settings" }
+  | { kind: "watch-history" }
+  | { kind: "saved" };
+
+const MENU_PAGES = new Set<string>(["menu", "settings", "watch-history", "saved"]);
+
+function tabForPage(page: Page): Tab {
+  if (MENU_PAGES.has(page.kind)) return "menu";
+  return "moltbook";
+}
 
 function parseRoute(hash: string): Page {
   const h = hash.startsWith("#") ? hash.slice(1) : hash;
@@ -43,6 +59,10 @@ function parseRoute(hash: string): Page {
   if (parts[0] === "post" && parts[1]) return { kind: "post", id: decodeURIComponent(parts[1]) };
   if (parts[0] === "u" && parts[1]) return { kind: "user", name: decodeURIComponent(parts[1]) };
   if (parts[0] === "m" && parts[1]) return { kind: "submolt", name: decodeURIComponent(parts[1]) };
+  if (parts[0] === "menu") return { kind: "menu" };
+  if (parts[0] === "settings") return { kind: "settings" };
+  if (parts[0] === "watch-history") return { kind: "watch-history" };
+  if (parts[0] === "saved") return { kind: "saved" };
 
   return { kind: "feed" };
 }
@@ -75,10 +95,23 @@ function setRoute(page: Page) {
     case "user":
       window.location.hash = `#/u/${encodeURIComponent(page.name)}`;
       return;
+    case "menu":
+      window.location.hash = "#/menu";
+      return;
+    case "settings":
+      window.location.hash = "#/settings";
+      return;
+    case "watch-history":
+      window.location.hash = "#/watch-history";
+      return;
+    case "saved":
+      window.location.hash = "#/saved";
+      return;
   }
 }
 
 export function App() {
+  useTheme();
   const keyStore = useApiKeyStore();
   const [activePlatform, setActivePlatform] = useState<Platform>("moltbook");
 
@@ -92,6 +125,8 @@ export function App() {
     return initial.kind === "login" && apiKey ? { kind: "feed" } : initial;
   });
 
+  const activeTab = tabForPage(page);
+
   const api = useMemo(() => {
     const http = new MoltbookHttpClient({
       baseUrl: DEFAULT_MOLTBOOK_BASE_URL,
@@ -100,8 +135,14 @@ export function App() {
     return new MoltbookApi(http);
   }, [apiKey]);
 
+  const navigatingRef = useRef(false);
+
   React.useEffect(() => {
     const onChange = () => {
+      if (navigatingRef.current) {
+        navigatingRef.current = false;
+        return;
+      }
       const next = parseRoute(window.location.hash);
       if (next.kind === "compose" && !apiKey) {
         setRoute({ kind: "login" });
@@ -116,23 +157,39 @@ export function App() {
   }, [apiKey]);
 
   const navigate = (p: Page) => {
+    navigatingRef.current = true;
     setRoute(p);
     setPage(p);
   };
 
+  const handleSwitchTab = (tab: Tab) => {
+    if (tab === "menu") {
+      navigate({ kind: "menu" });
+    } else {
+      setActivePlatform(tab);
+      if (MENU_PAGES.has(page.kind)) {
+        navigate({ kind: "feed" });
+      }
+    }
+  };
+
+  const showHeader = !MENU_PAGES.has(page.kind);
+
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100vh", fontFamily: "system-ui, sans-serif" }}>
-      <Header
-        activePlatform={activePlatform}
-        page={page}
-        isAuthed={!!apiKey}
-        platformKeys={platformKeys}
-        activeKey={activeKey}
-        onNavigate={(p) => navigate(p as Page)}
-        onSwitchKey={(id) => keyStore.setActiveKey(id)}
-        onRemoveKey={(id) => keyStore.removeKey(id)}
-        onRefresh={() => window.location.reload()}
-      />
+      {showHeader && (
+        <Header
+          activePlatform={activePlatform}
+          page={page}
+          isAuthed={!!apiKey}
+          platformKeys={platformKeys}
+          activeKey={activeKey}
+          onNavigate={(p) => navigate(p as Page)}
+          onSwitchKey={(id) => keyStore.setActiveKey(id)}
+          onRemoveKey={(id) => keyStore.removeKey(id)}
+          onRefresh={() => window.location.reload()}
+        />
+      )}
 
       <main style={{ flex: 1, overflowY: "auto", padding: 16 }}>
         <div style={{ maxWidth: 900, margin: "0 auto" }}>
@@ -186,12 +243,16 @@ export function App() {
               onCreated={(postId) => navigate({ kind: "post", id: postId })}
             />
           )}
+          {page.kind === "menu" && <MenuPage onNavigate={(p) => navigate(p as Page)} />}
+          {page.kind === "settings" && <SettingsPage />}
+          {page.kind === "watch-history" && <WatchHistoryPage />}
+          {page.kind === "saved" && <SavedPage />}
         </div>
       </main>
 
-      <TabBar activePlatform={activePlatform} onSwitchPlatform={setActivePlatform} />
+      <TabBar activeTab={activeTab} onSwitchTab={handleSwitchTab} />
 
-      <footer style={{ padding: "8px 16px", fontSize: 12, opacity: 0.8, textAlign: "center", borderTop: "1px solid #eee", flexShrink: 0 }}>
+      <footer style={{ padding: "8px 16px", fontSize: 12, opacity: 0.8, textAlign: "center", borderTop: "1px solid var(--color-border)", flexShrink: 0 }}>
         Moltpostor is a static client. Your API keys are stored in this browser only.
       </footer>
     </div>

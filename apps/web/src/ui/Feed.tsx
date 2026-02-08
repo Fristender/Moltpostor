@@ -41,7 +41,7 @@ export function Feed(props: { api: MoltbookApi; isAuthed: boolean; onOpenPost: (
         const submolts = getPinnedSubmolts();
         if (agents.length === 0 && submolts.length === 0) return null;
         return (
-          <div style={{ marginBottom: 16, padding: 12, border: "1px solid #ddd", borderRadius: 8 }}>
+          <div style={{ marginBottom: 16, padding: 12, border: "1px solid var(--color-border)", borderRadius: 8 }}>
             <strong style={{ fontSize: 14 }}>Pinned</strong>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 8 }}>
               {submolts.map((s) => (
@@ -49,7 +49,7 @@ export function Feed(props: { api: MoltbookApi; isAuthed: boolean; onOpenPost: (
                   key={`s-${s}`}
                   href={`#/m/${encodeURIComponent(s)}`}
                   onClick={(e) => { e.preventDefault(); props.onOpenSubmolt(s); }}
-                  style={{ padding: "2px 10px", borderRadius: 12, fontSize: 13, background: "#e8e8e8", textDecoration: "none", color: "inherit" }}
+                  style={{ padding: "2px 10px", borderRadius: 12, fontSize: 13, background: "var(--color-bg-accent)", textDecoration: "none", color: "inherit" }}
                 >
                   m/{s}
                 </a>
@@ -58,7 +58,7 @@ export function Feed(props: { api: MoltbookApi; isAuthed: boolean; onOpenPost: (
                 <a
                   key={`u-${a}`}
                   href={`#/u/${encodeURIComponent(a)}`}
-                  style={{ padding: "2px 10px", borderRadius: 12, fontSize: 13, background: "#d8e8f8", textDecoration: "none", color: "inherit" }}
+                  style={{ padding: "2px 10px", borderRadius: 12, fontSize: 13, background: "var(--color-bg-accent-alt)", textDecoration: "none", color: "inherit" }}
                 >
                   u/{a}
                 </a>

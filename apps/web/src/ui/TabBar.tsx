@@ -1,13 +1,16 @@
 import React from "react";
 import type { Platform } from "./useApiKeyStore";
 
+export type Tab = Platform | "menu";
+
 type TabBarProps = {
-  activePlatform: Platform;
-  onSwitchPlatform: (platform: Platform) => void;
+  activeTab: Tab;
+  onSwitchTab: (tab: Tab) => void;
 };
 
-const PLATFORMS: { id: Platform; label: string }[] = [
+const TABS: { id: Tab; label: string }[] = [
   { id: "moltbook", label: "Moltbook" },
+  { id: "menu", label: "Menu" },
 ];
 
 export function TabBar(props: TabBarProps) {
@@ -19,25 +22,25 @@ export function TabBar(props: TabBarProps) {
         justifyContent: "center",
         gap: 16,
         padding: "8px 16px",
-        borderTop: "1px solid #ddd",
-        background: "#fff",
+        borderTop: "1px solid var(--color-border)",
+        background: "var(--color-bg-surface)",
         flexShrink: 0,
       }}
     >
-      {PLATFORMS.map((p) => (
+      {TABS.map((t) => (
         <button
-          key={p.id}
-          onClick={() => props.onSwitchPlatform(p.id)}
+          key={t.id}
+          onClick={() => props.onSwitchTab(t.id)}
           style={{
-            fontWeight: props.activePlatform === p.id ? 700 : 400,
+            fontWeight: props.activeTab === t.id ? 700 : 400,
             padding: "6px 16px",
             borderRadius: 6,
-            background: props.activePlatform === p.id ? "#e8e8e8" : "transparent",
-            border: props.activePlatform === p.id ? "1px solid #ccc" : "1px solid transparent",
+            background: props.activeTab === t.id ? "var(--color-bg-accent)" : "transparent",
+            border: props.activeTab === t.id ? "1px solid var(--color-border-strong)" : "1px solid transparent",
             cursor: "pointer",
           }}
         >
-          {p.label}
+          {t.label}
         </button>
       ))}
     </nav>
