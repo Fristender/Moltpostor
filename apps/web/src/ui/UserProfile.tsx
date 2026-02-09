@@ -218,7 +218,7 @@ export function UserProfile(props: { api: MoltbookApi; name: string; onOpenPost:
                         {subName ? (
                           <>
                             <a
-                              href={`#/m/${encodeURIComponent(subName)}`}
+                              href={`#/moltbook/m/${encodeURIComponent(subName)}`}
                               onClick={(e) => {
                                 e.preventDefault();
                                 props.onOpenSubmolt(subName);

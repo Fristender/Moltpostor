@@ -159,7 +159,7 @@ export function SubmoltView(props: { api: MoltbookApi; name: string; onOpenPost:
                   <div style={{ fontSize: 16, fontWeight: 600 }}>{String(p.title ?? "")}</div>
                   <div style={{ fontSize: 12, opacity: 0.75 }}>
                     {authorName ? (
-                      <a href={`#/u/${encodeURIComponent(authorName)}`}>u/{authorName}</a>
+                      <a href={`#/moltbook/u/${encodeURIComponent(authorName)}`}>u/{authorName}</a>
                     ) : (
                       ""
                     )}{" "}

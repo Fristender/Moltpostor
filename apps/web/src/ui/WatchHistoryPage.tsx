@@ -106,14 +106,14 @@ export function WatchHistoryPage() {
                   )}
                   
                   {item.type === "user" && (
-                    <a href={`#/u/${encodeURIComponent(item.name ?? item.id)}`} style={{ fontWeight: 600 }}>
+                    <a href={`#/moltbook/u/${encodeURIComponent(item.name ?? item.id)}`} style={{ fontWeight: 600 }}>
                       u/{item.name ?? item.id}
                     </a>
                   )}
                   
                   {item.type === "submolt" && (
                     <>
-                      <a href={`#/m/${encodeURIComponent(item.name ?? item.id)}`} style={{ fontWeight: 600 }}>
+                      <a href={`#/moltbook/m/${encodeURIComponent(item.name ?? item.id)}`} style={{ fontWeight: 600 }}>
                         m/{item.name ?? item.id}
                       </a>
                       {item.title && (
@@ -134,12 +134,12 @@ export function WatchHistoryPage() {
                     </a>
                   )}
                   {item.type === "user" && (
-                    <a href={`#/u/${encodeURIComponent(item.name ?? item.id)}`} style={{ fontSize: 12 }}>
+                    <a href={`#/moltbook/u/${encodeURIComponent(item.name ?? item.id)}`} style={{ fontSize: 12 }}>
                       Open
                     </a>
                   )}
                   {item.type === "submolt" && (
-                    <a href={`#/m/${encodeURIComponent(item.name ?? item.id)}`} style={{ fontSize: 12 }}>
+                    <a href={`#/moltbook/m/${encodeURIComponent(item.name ?? item.id)}`} style={{ fontSize: 12 }}>
                       Open
                     </a>
                   )}

@@ -141,7 +141,7 @@ export function Submolts(props: { api: MoltbookApi; isAuthed: boolean; onOpenSub
         {items.map((s) => (
           <article key={String(s.name ?? "")} style={{ border: "1px solid #ddd", borderRadius: 8, padding: 12 }}>
             <div style={{ fontWeight: 600 }}>
-              <a href={`#/m/${encodeURIComponent(String(s.name ?? ""))}`} onClick={(e) => {
+              <a href={`#/moltbook/m/${encodeURIComponent(String(s.name ?? ""))}`} onClick={(e) => {
                 e.preventDefault();
                 props.onOpenSubmolt(String(s.name ?? ""));
               }}>

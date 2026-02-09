@@ -146,21 +146,13 @@ function parseRoute(hash: string): Page {
   const params = new URLSearchParams(query);
 
   if (parts.length === 0) return { kind: "feed" };
-  if (parts[0] === "feed") return { kind: "feed" };
-  if (parts[0] === "submolts") return { kind: "submolts" };
-  if (parts[0] === "search") return { kind: "search", q: params.get("q")?.trim() ?? "" };
-  if (parts[0] === "compose") {
-    const submolt = params.get("submolt")?.trim() || undefined;
-    return submolt ? { kind: "compose", submolt } : { kind: "compose" };
-  }
-  if (parts[0] === "login") return { kind: "login" };
-  if (parts[0] === "post" && parts[1]) return { kind: "post", id: decodeURIComponent(parts[1]) };
-  if (parts[0] === "u" && parts[1]) return { kind: "user", name: decodeURIComponent(parts[1]) };
-  if (parts[0] === "m" && parts[1]) return { kind: "submolt", name: decodeURIComponent(parts[1]) };
+  
+  // Menu routes (not under platform prefix)
   if (parts[0] === "menu") return { kind: "menu" };
   if (parts[0] === "settings") return { kind: "settings" };
   if (parts[0] === "watch-history") return { kind: "watch-history" };
   if (parts[0] === "saved") return { kind: "saved" };
+
   // MoltX routes
   if (parts[0] === "moltx") {
     if (parts.length === 1 || parts[1] === "feed") return { kind: "moltx-feed" };
@@ -175,19 +167,50 @@ function parseRoute(hash: string): Page {
     return { kind: "moltx-feed" };
   }
 
+  // Moltbook routes
+  if (parts[0] === "moltbook") {
+    if (parts.length === 1 || parts[1] === "feed") return { kind: "feed" };
+    if (parts[1] === "submolts") return { kind: "submolts" };
+    if (parts[1] === "search") return { kind: "search", q: params.get("q")?.trim() ?? "" };
+    if (parts[1] === "compose") {
+      const submolt = params.get("submolt")?.trim() || undefined;
+      return submolt ? { kind: "compose", submolt } : { kind: "compose" };
+    }
+    if (parts[1] === "login") return { kind: "login" };
+    if (parts[1] === "post" && parts[2]) return { kind: "post", id: decodeURIComponent(parts[2]) };
+    if (parts[1] === "u" && parts[2]) return { kind: "user", name: decodeURIComponent(parts[2]) };
+    if (parts[1] === "m" && parts[2]) return { kind: "submolt", name: decodeURIComponent(parts[2]) };
+    return { kind: "feed" };
+  }
+
+  // Legacy routes (redirect to /moltbook)
+  if (parts[0] === "feed") return { kind: "feed" };
+  if (parts[0] === "submolts") return { kind: "submolts" };
+  if (parts[0] === "search") return { kind: "search", q: params.get("q")?.trim() ?? "" };
+  if (parts[0] === "compose") {
+    const submolt = params.get("submolt")?.trim() || undefined;
+    return submolt ? { kind: "compose", submolt } : { kind: "compose" };
+  }
+  if (parts[0] === "login") return { kind: "login" };
+  if (parts[0] === "post" && parts[1]) return { kind: "post", id: decodeURIComponent(parts[1]) };
+  if (parts[0] === "u" && parts[1]) return { kind: "user", name: decodeURIComponent(parts[1]) };
+  if (parts[0] === "m" && parts[1]) return { kind: "submolt", name: decodeURIComponent(parts[1]) };
+
   return { kind: "feed" };
 }
 
 function pageToHash(page: Page): string {
   switch (page.kind) {
-    case "feed": return "#/feed";
-    case "submolts": return "#/submolts";
-    case "search": return page.q ? `#/search?q=${encodeURIComponent(page.q)}` : "#/search";
-    case "submolt": return `#/m/${encodeURIComponent(page.name)}`;
-    case "compose": return page.submolt ? `#/compose?submolt=${encodeURIComponent(page.submolt)}` : "#/compose";
-    case "login": return "#/login";
-    case "post": return `#/post/${encodeURIComponent(page.id)}`;
-    case "user": return `#/u/${encodeURIComponent(page.name)}`;
+    // Moltbook routes
+    case "feed": return "#/moltbook/feed";
+    case "submolts": return "#/moltbook/submolts";
+    case "search": return page.q ? `#/moltbook/search?q=${encodeURIComponent(page.q)}` : "#/moltbook/search";
+    case "submolt": return `#/moltbook/m/${encodeURIComponent(page.name)}`;
+    case "compose": return page.submolt ? `#/moltbook/compose?submolt=${encodeURIComponent(page.submolt)}` : "#/moltbook/compose";
+    case "login": return "#/moltbook/login";
+    case "post": return `#/moltbook/post/${encodeURIComponent(page.id)}`;
+    case "user": return `#/moltbook/u/${encodeURIComponent(page.name)}`;
+    // Menu routes
     case "menu": return "#/menu";
     case "settings": return "#/settings";
     case "watch-history": return "#/watch-history";

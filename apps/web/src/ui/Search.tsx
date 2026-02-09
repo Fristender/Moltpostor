@@ -127,7 +127,7 @@ export function Search(props: {
                         {subName ? (
                           <>
                             <a
-                              href={`#/m/${encodeURIComponent(subName)}`}
+                              href={`#/moltbook/m/${encodeURIComponent(subName)}`}
                               onClick={(e) => {
                                 e.preventDefault();
                                 props.onOpenSubmolt(subName);
@@ -141,7 +141,7 @@ export function Search(props: {
                           <>
                             {" - "}
                             <a
-                              href={`#/u/${encodeURIComponent(authorName)}`}
+                              href={`#/moltbook/u/${encodeURIComponent(authorName)}`}
                               onClick={(e) => {
                                 e.preventDefault();
                                 props.onOpenUser(authorName);
@@ -188,7 +188,7 @@ export function Search(props: {
                     {authorName ? (
                       <>
                         <a
-                          href={`#/u/${encodeURIComponent(authorName)}`}
+                          href={`#/moltbook/u/${encodeURIComponent(authorName)}`}
                           onClick={(e) => {
                             e.preventDefault();
                             props.onOpenUser(authorName);
@@ -225,7 +225,7 @@ export function Search(props: {
               return (
                 <div key={name || Math.random()}>
                   <a
-                    href={`#/u/${encodeURIComponent(name)}`}
+                    href={`#/moltbook/u/${encodeURIComponent(name)}`}
                     onClick={(e) => {
                       e.preventDefault();
                       props.onOpenUser(name);
@@ -252,7 +252,7 @@ export function Search(props: {
               return (
                 <div key={name || Math.random()}>
                   <a
-                    href={`#/m/${encodeURIComponent(name)}`}
+                    href={`#/moltbook/m/${encodeURIComponent(name)}`}
                     onClick={(e) => {
                       e.preventDefault();
                       props.onOpenSubmolt(name);

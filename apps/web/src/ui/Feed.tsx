@@ -48,7 +48,7 @@ export function Feed(props: { api: MoltbookApi; isAuthed: boolean; onOpenPost: (
               {submolts.map((s) => (
                 <a
                   key={`s-${s}`}
-                  href={`#/m/${encodeURIComponent(s)}`}
+                  href={`#/moltbook/m/${encodeURIComponent(s)}`}
                   onClick={(e) => { e.preventDefault(); props.onOpenSubmolt(s); }}
                   style={{ padding: "2px 10px", borderRadius: 12, fontSize: 13, background: "var(--color-bg-accent)", textDecoration: "none", color: "inherit" }}
                 >
@@ -58,7 +58,7 @@ export function Feed(props: { api: MoltbookApi; isAuthed: boolean; onOpenPost: (
               {agents.map((a) => (
                 <a
                   key={`u-${a}`}
-                  href={`#/u/${encodeURIComponent(a)}`}
+                  href={`#/moltbook/u/${encodeURIComponent(a)}`}
                   style={{ padding: "2px 10px", borderRadius: 12, fontSize: 13, background: "var(--color-bg-accent-alt)", textDecoration: "none", color: "inherit" }}
                 >
                   u/{a}
@@ -85,7 +85,7 @@ export function Feed(props: { api: MoltbookApi; isAuthed: boolean; onOpenPost: (
                     {subName ? (
                       <>
                         <a
-                          href={`#/m/${encodeURIComponent(subName)}`}
+                          href={`#/moltbook/m/${encodeURIComponent(subName)}`}
                           onClick={(e) => {
                             e.preventDefault();
                             props.onOpenSubmolt(subName);
@@ -100,7 +100,7 @@ export function Feed(props: { api: MoltbookApi; isAuthed: boolean; onOpenPost: (
                     {authorName ? (
                       <>
                         {" - "}
-                        <a href={`#/u/${encodeURIComponent(authorName)}`}>u/{authorName}</a>
+                        <a href={`#/moltbook/u/${encodeURIComponent(authorName)}`}>u/{authorName}</a>
                       </>
                     ) : null}
                     {p.created_at ? ` - ${p.created_at}` : ""}

@@ -89,7 +89,7 @@ export function SavedPage() {
                     <a
                       href={item.platform === "moltx" 
                         ? `#/moltx/post/${encodeURIComponent(item.id)}`
-                        : `#/post/${encodeURIComponent(item.id)}`}
+                        : `#/moltbook/post/${encodeURIComponent(item.id)}`}
                       style={{ fontSize: 12 }}
                     >
                       Open
@@ -99,8 +99,7 @@ export function SavedPage() {
                     <a
                       href={item.platform === "moltx"
                         ? `#/moltx/post/${encodeURIComponent(item.parentId)}`
-                        : `#/post/${encodeURIComponent(item.parentId)}`}
-                      data-platform={item.platform}
+                        : `#/moltbook/post/${encodeURIComponent(item.parentId)}`}
                       style={{ fontSize: 12 }}
                     >
                       Open Post

@@ -155,10 +155,10 @@ export function PostView(props: { api: MoltbookApi; postId: string }) {
         {postSubmoltName ? (
           <>
             <a
-              href={`#/m/${encodeURIComponent(postSubmoltName)}`}
+              href={`#/moltbook/m/${encodeURIComponent(postSubmoltName)}`}
               onClick={(e) => {
                 e.preventDefault();
-                window.location.hash = `#/m/${encodeURIComponent(postSubmoltName)}`;
+                window.location.hash = `#/moltbook/m/${encodeURIComponent(postSubmoltName)}`;
               }}
             >
               m/{postSubmoltName}
@@ -168,7 +168,7 @@ export function PostView(props: { api: MoltbookApi; postId: string }) {
         {postAuthorName ? (
           <>
             {" - "}
-            <a href={`#/u/${encodeURIComponent(postAuthorName)}`}>u/{postAuthorName}</a>
+            <a href={`#/moltbook/u/${encodeURIComponent(postAuthorName)}`}>u/{postAuthorName}</a>
           </>
         ) : null}
         {post.created_at ? ` - ${post.created_at}` : ""} - score {score}
@@ -320,7 +320,7 @@ export function PostView(props: { api: MoltbookApi; postId: string }) {
             <article key={id} style={{ border: "1px solid #ddd", borderRadius: 8, padding: 12 }}>
               <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
                 <div style={{ fontSize: 12, opacity: 0.75 }}>
-                  {commentAuthorName ? <a href={`#/u/${encodeURIComponent(commentAuthorName)}`}>u/{commentAuthorName}</a> : ""}{" "}
+                  {commentAuthorName ? <a href={`#/moltbook/u/${encodeURIComponent(commentAuthorName)}`}>u/{commentAuthorName}</a> : ""}{" "}
                   {c.created_at ? `- ${c.created_at}` : ""}
                 </div>
                 <div>score {score}</div>
