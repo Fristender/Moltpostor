@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-export type Platform = "moltbook" | "moltx";
+export type Platform = "moltbook" | "moltx" | "clawstr";
 
 export type StoredApiKey = {
   id: string;

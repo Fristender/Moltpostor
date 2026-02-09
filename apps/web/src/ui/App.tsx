@@ -1,5 +1,5 @@
 import React, { useMemo, useRef, useState, useCallback, useEffect } from "react";
-import { MoltbookApi, MoltbookHttpClient, DEFAULT_MOLTBOOK_BASE_URL, MoltXApi, DEFAULT_MOLTX_BASE_URL } from "@moltpostor/api";
+import { MoltbookApi, MoltbookHttpClient, DEFAULT_MOLTBOOK_BASE_URL, MoltXApi, DEFAULT_MOLTX_BASE_URL, ClawstrApi } from "@moltpostor/api";
 import { Feed } from "./Feed";
 import { Login } from "./Login";
 import { Submolts } from "./Submolts";
@@ -30,6 +30,16 @@ import {
   MoltXWalletLink,
   useMoltXWalletStatus,
 } from "./moltx";
+import {
+  ClawstrFeed,
+  ClawstrPostView,
+  ClawstrProfile,
+  ClawstrCompose,
+  ClawstrSearch,
+  ClawstrNotifications,
+  ClawstrLogin,
+  ClawstrSubclawFeed,
+} from "./clawstr";
 
 type Page =
   | { kind: "feed" }
@@ -53,7 +63,16 @@ type Page =
   | { kind: "moltx-login"; initialMode?: "import" | "register" }
   | { kind: "moltx-notifications" }
   | { kind: "moltx-leaderboard" }
-  | { kind: "moltx-hashtag"; tag: string };
+  | { kind: "moltx-hashtag"; tag: string }
+  // Clawstr pages
+  | { kind: "clawstr-feed" }
+  | { kind: "clawstr-post"; id: string }
+  | { kind: "clawstr-user"; npub: string }
+  | { kind: "clawstr-search"; q: string }
+  | { kind: "clawstr-compose"; subclaw?: string }
+  | { kind: "clawstr-login" }
+  | { kind: "clawstr-notifications" }
+  | { kind: "clawstr-subclaw"; name: string };
 
 type CachedPage = {
   key: string;
@@ -63,6 +82,7 @@ type CachedPage = {
 
 const MENU_PAGES = new Set<string>(["menu", "settings", "watch-history", "saved"]);
 const MOLTX_PAGES = new Set<string>(["moltx-feed", "moltx-post", "moltx-user", "moltx-search", "moltx-compose", "moltx-login", "moltx-notifications", "moltx-leaderboard", "moltx-hashtag"]);
+const CLAWSTR_PAGES = new Set<string>(["clawstr-feed", "clawstr-post", "clawstr-user", "clawstr-search", "clawstr-compose", "clawstr-login", "clawstr-notifications", "clawstr-subclaw"]);
 
 // Logical parent mapping: what page should "back" go to?
 function getLogicalParent(page: Page): Page | null {
@@ -98,6 +118,19 @@ function getLogicalParent(page: Page): Page | null {
       return { kind: "moltx-feed" };
     case "moltx-user":
       return { kind: "moltx-feed" };
+    // Clawstr pages
+    case "clawstr-feed":
+    case "clawstr-search":
+    case "clawstr-compose":
+    case "clawstr-login":
+    case "clawstr-notifications":
+      return null; // Root level Clawstr pages
+    case "clawstr-post":
+      return { kind: "clawstr-feed" };
+    case "clawstr-user":
+      return { kind: "clawstr-feed" };
+    case "clawstr-subclaw":
+      return { kind: "clawstr-feed" };
     default:
       return null;
   }
@@ -106,6 +139,7 @@ function getLogicalParent(page: Page): Page | null {
 function tabForPage(page: Page): Tab {
   if (MENU_PAGES.has(page.kind)) return "menu";
   if (MOLTX_PAGES.has(page.kind)) return "moltx";
+  if (CLAWSTR_PAGES.has(page.kind)) return "clawstr";
   return "moltbook";
 }
 
@@ -133,6 +167,15 @@ function pageKey(page: Page): string {
     case "moltx-notifications": return "moltx-notifications";
     case "moltx-leaderboard": return "moltx-leaderboard";
     case "moltx-hashtag": return `moltx-hashtag:${page.tag}`;
+    // Clawstr pages
+    case "clawstr-feed": return "clawstr-feed";
+    case "clawstr-post": return `clawstr-post:${page.id}`;
+    case "clawstr-user": return `clawstr-user:${page.npub}`;
+    case "clawstr-search": return `clawstr-search:${page.q}`;
+    case "clawstr-compose": return `clawstr-compose:${page.subclaw ?? ""}`;
+    case "clawstr-login": return "clawstr-login";
+    case "clawstr-notifications": return "clawstr-notifications";
+    case "clawstr-subclaw": return `clawstr-subclaw:${page.name}`;
   }
 }
 
@@ -165,6 +208,22 @@ function parseRoute(hash: string): Page {
     if (parts[1] === "leaderboard") return { kind: "moltx-leaderboard" };
     if (parts[1] === "hashtag" && parts[2]) return { kind: "moltx-hashtag", tag: decodeURIComponent(parts[2]) };
     return { kind: "moltx-feed" };
+  }
+
+  // Clawstr routes
+  if (parts[0] === "clawstr") {
+    if (parts.length === 1 || parts[1] === "feed") return { kind: "clawstr-feed" };
+    if (parts[1] === "post" && parts[2]) return { kind: "clawstr-post", id: decodeURIComponent(parts[2]) };
+    if (parts[1] === "user" && parts[2]) return { kind: "clawstr-user", npub: decodeURIComponent(parts[2]) };
+    if (parts[1] === "search") return { kind: "clawstr-search", q: params.get("q")?.trim() ?? "" };
+    if (parts[1] === "compose") {
+      const subclaw = params.get("subclaw")?.trim() || undefined;
+      return subclaw ? { kind: "clawstr-compose", subclaw } : { kind: "clawstr-compose" };
+    }
+    if (parts[1] === "login") return { kind: "clawstr-login" };
+    if (parts[1] === "notifications") return { kind: "clawstr-notifications" };
+    if (parts[1] === "c" && parts[2]) return { kind: "clawstr-subclaw", name: decodeURIComponent(parts[2]) };
+    return { kind: "clawstr-feed" };
   }
 
   // Moltbook routes
@@ -225,6 +284,15 @@ function pageToHash(page: Page): string {
     case "moltx-notifications": return "#/moltx/notifications";
     case "moltx-leaderboard": return "#/moltx/leaderboard";
     case "moltx-hashtag": return `#/moltx/hashtag/${encodeURIComponent(page.tag)}`;
+    // Clawstr routes
+    case "clawstr-feed": return "#/clawstr/feed";
+    case "clawstr-post": return `#/clawstr/post/${encodeURIComponent(page.id)}`;
+    case "clawstr-user": return `#/clawstr/user/${encodeURIComponent(page.npub)}`;
+    case "clawstr-search": return page.q ? `#/clawstr/search?q=${encodeURIComponent(page.q)}` : "#/clawstr/search";
+    case "clawstr-compose": return page.subclaw ? `#/clawstr/compose?subclaw=${encodeURIComponent(page.subclaw)}` : "#/clawstr/compose";
+    case "clawstr-login": return "#/clawstr/login";
+    case "clawstr-notifications": return "#/clawstr/notifications";
+    case "clawstr-subclaw": return `#/clawstr/c/${encodeURIComponent(page.name)}`;
   }
 }
 
@@ -240,7 +308,9 @@ export function App() {
   const { markdownEnabled, toggleMarkdown, saveItem, unsaveItem, isSaved } = useAppContext();
   const [activePlatform, setActivePlatform] = useState<Platform>(() => {
     const initial = parseRoute(window.location.hash);
-    return MOLTX_PAGES.has(initial.kind) ? "moltx" : "moltbook";
+    if (MOLTX_PAGES.has(initial.kind)) return "moltx";
+    if (CLAWSTR_PAGES.has(initial.kind)) return "clawstr";
+    return "moltbook";
   });
 
   const activeKey = keyStore.getActiveKey(activePlatform);
@@ -307,6 +377,19 @@ export function App() {
     });
     return new MoltXApi(http);
   }, [moltxApiKey]);
+
+  // Clawstr API (Nostr-based)
+  const clawstrNsec = keyStore.getActiveKey("clawstr")?.key ?? null;
+  const clawstrApi = useMemo(() => {
+    const api = new ClawstrApi();
+    if (clawstrNsec) {
+      try {
+        api.importSecretKey(clawstrNsec);
+      } catch { /* ignore invalid keys */ }
+    }
+    return api;
+  }, [clawstrNsec]);
+  const clawstrIsAuthed = clawstrApi.isAuthenticated();
 
   // Wallet linking modal state
   const [showWalletLink, setShowWalletLink] = useState(false);
@@ -418,6 +501,8 @@ export function App() {
       // Set active platform based on page type
       if (MOLTX_PAGES.has(next.kind)) {
         setActivePlatform("moltx");
+      } else if (CLAWSTR_PAGES.has(next.kind)) {
+        setActivePlatform("clawstr");
       } else {
         setActivePlatform("moltbook");
       }
@@ -579,9 +664,13 @@ export function App() {
       setActivePlatform("moltx");
       const moltxPage = platformCache.find(c => c.key.startsWith("moltx-"))?.page ?? { kind: "moltx-feed" as const };
       navigate(moltxPage, { isTabSwitch: true });
+    } else if (tab === "clawstr") {
+      setActivePlatform("clawstr");
+      const clawstrPage = platformCache.find(c => c.key.startsWith("clawstr-"))?.page ?? { kind: "clawstr-feed" as const };
+      navigate(clawstrPage, { isTabSwitch: true });
     } else {
       setActivePlatform(tab);
-      const targetPage = platformCache.find(c => c.key === activePlatformKey && !c.key.startsWith("moltx-"))?.page ?? { kind: "feed" as const };
+      const targetPage = platformCache.find(c => c.key === activePlatformKey && !c.key.startsWith("moltx-") && !c.key.startsWith("clawstr-"))?.page ?? { kind: "feed" as const };
       navigate(targetPage, { isTabSwitch: true });
     }
   }, [activeTab, activeMenuKey, activePlatformKey, menuCache, platformCache, navigate, saveScrollPosition]);
@@ -589,12 +678,16 @@ export function App() {
   const platformNavigate = useCallback((p: Page) => navigate(p), [navigate]);
   const menuNavigate = useCallback((p: Page) => navigate(p), [navigate]);
   const moltxNavigate = useCallback((p: Page) => navigate(p), [navigate]);
+  const clawstrNavigate = useCallback((p: Page) => navigate(p), [navigate]);
 
   const renderPlatformPage = (cached: CachedPage) => {
     const { key, page } = cached;
     const isMoltxPage = MOLTX_PAGES.has(page.kind);
+    const isClawstrPage = CLAWSTR_PAGES.has(page.kind);
     const isActive = key === activePlatformKey && activeTab !== "menu" && (
-      (activeTab === "moltx" && isMoltxPage) || (activeTab === "moltbook" && !isMoltxPage)
+      (activeTab === "moltx" && isMoltxPage) || 
+      (activeTab === "clawstr" && isClawstrPage) ||
+      (activeTab === "moltbook" && !isMoltxPage && !isClawstrPage)
     );
     return (
       <div
@@ -751,6 +844,110 @@ export function App() {
               onOpenPost={(id) => moltxNavigate({ kind: "moltx-post", id })}
               onOpenUser={(name) => moltxNavigate({ kind: "moltx-user", name })}
               onOpenHashtag={(tag) => moltxNavigate({ kind: "moltx-hashtag", tag })}
+            />
+          )}
+          {/* Clawstr pages */}
+          {page.kind === "clawstr-login" && (
+            <ClawstrLogin
+              api={clawstrApi}
+              onSetKey={(nsec, label) => {
+                keyStore.addKey("clawstr", label, nsec);
+                clawstrNavigate({ kind: "clawstr-feed" });
+              }}
+            />
+          )}
+          {page.kind === "clawstr-feed" && (
+            <ClawstrFeed
+              api={clawstrApi}
+              isAuthed={clawstrIsAuthed}
+              onOpenPost={(id) => clawstrNavigate({ kind: "clawstr-post", id })}
+              onOpenUser={(npub) => clawstrNavigate({ kind: "clawstr-user", npub })}
+              onOpenSubclaw={(name) => clawstrNavigate({ kind: "clawstr-subclaw", name })}
+              onCompose={() => clawstrNavigate({ kind: "clawstr-compose" })}
+              onSavePost={(post) => {
+                if (isSaved("clawstr", "post", post.id)) {
+                  unsaveItem("clawstr", "post", post.id);
+                } else {
+                  saveItem({
+                    id: post.id,
+                    platform: "clawstr",
+                    type: "post",
+                    content: post.content ?? "",
+                    author: post.author?.name ?? post.author?.npub?.slice(0, 12) ?? "",
+                  });
+                }
+              }}
+              isPostSaved={(id) => isSaved("clawstr", "post", id)}
+            />
+          )}
+          {page.kind === "clawstr-post" && (
+            <ClawstrPostView
+              api={clawstrApi}
+              postId={page.id}
+              isAuthed={clawstrIsAuthed}
+              onOpenPost={(id) => clawstrNavigate({ kind: "clawstr-post", id })}
+              onOpenUser={(npub) => clawstrNavigate({ kind: "clawstr-user", npub })}
+              onOpenSubclaw={(name) => clawstrNavigate({ kind: "clawstr-subclaw", name })}
+            />
+          )}
+          {page.kind === "clawstr-user" && (
+            <ClawstrProfile
+              api={clawstrApi}
+              npub={page.npub}
+              isAuthed={clawstrIsAuthed}
+              onOpenPost={(id) => clawstrNavigate({ kind: "clawstr-post", id })}
+              onOpenUser={(npub) => clawstrNavigate({ kind: "clawstr-user", npub })}
+              onOpenSubclaw={(name) => clawstrNavigate({ kind: "clawstr-subclaw", name })}
+            />
+          )}
+          {page.kind === "clawstr-search" && (
+            <ClawstrSearch
+              api={clawstrApi}
+              initialQuery={page.q}
+              isAuthed={clawstrIsAuthed}
+              onSetQuery={(q) => clawstrNavigate({ kind: "clawstr-search", q })}
+              onOpenPost={(id) => clawstrNavigate({ kind: "clawstr-post", id })}
+              onOpenUser={(npub) => clawstrNavigate({ kind: "clawstr-user", npub })}
+              onOpenSubclaw={(name) => clawstrNavigate({ kind: "clawstr-subclaw", name })}
+            />
+          )}
+          {page.kind === "clawstr-compose" && (
+            <ClawstrCompose
+              api={clawstrApi}
+              {...(page.subclaw ? { initialSubclaw: page.subclaw } : {})}
+              onCreated={(noteId) => clawstrNavigate({ kind: "clawstr-post", id: noteId })}
+            />
+          )}
+          {page.kind === "clawstr-notifications" && (
+            <ClawstrNotifications
+              api={clawstrApi}
+              onOpenPost={(id) => clawstrNavigate({ kind: "clawstr-post", id })}
+              onOpenUser={(npub) => clawstrNavigate({ kind: "clawstr-user", npub })}
+            />
+          )}
+          {page.kind === "clawstr-subclaw" && (
+            <ClawstrSubclawFeed
+              api={clawstrApi}
+              subclaw={page.name}
+              isAuthed={clawstrIsAuthed}
+              onOpenPost={(id) => clawstrNavigate({ kind: "clawstr-post", id })}
+              onOpenUser={(npub) => clawstrNavigate({ kind: "clawstr-user", npub })}
+              onOpenSubclaw={(name) => clawstrNavigate({ kind: "clawstr-subclaw", name })}
+              onCompose={() => clawstrNavigate({ kind: "clawstr-compose", subclaw: page.name })}
+              onSavePost={(post) => {
+                if (isSaved("clawstr", "post", post.id)) {
+                  unsaveItem("clawstr", "post", post.id);
+                } else {
+                  saveItem({
+                    id: post.id,
+                    platform: "clawstr",
+                    type: "post",
+                    content: post.content ?? "",
+                    author: post.author?.name ?? post.author?.npub?.slice(0, 12) ?? "",
+                  });
+                }
+              }}
+              isPostSaved={(id) => isSaved("clawstr", "post", id)}
             />
           )}
         </div>

@@ -43,6 +43,12 @@ const PLATFORM_NAV: Record<Platform, { label: string; page: NavPage }[]> = {
     { label: "Notifications", page: { kind: "moltx-notifications" } },
     { label: "+ Post", page: { kind: "moltx-compose" } },
   ],
+  clawstr: [
+    { label: "Feed", page: { kind: "clawstr-feed" } },
+    { label: "Search", page: { kind: "clawstr-search", q: "" } },
+    { label: "Notifications", page: { kind: "clawstr-notifications" } },
+    { label: "+ Post", page: { kind: "clawstr-compose" } },
+  ],
 };
 
 type GoToType = "post" | "user" | "submolt" | "moltx-post" | "moltx-user";
@@ -375,6 +381,8 @@ export function Header(props: HeaderProps) {
                     setMenuOpen(false);
                     const loginPage = props.activePlatform === "moltx" 
                       ? { kind: "moltx-login", initialMode: "import" as const }
+                      : props.activePlatform === "clawstr"
+                      ? { kind: "clawstr-login" as const }
                       : { kind: "login", initialMode: "import" as const };
                     props.onNavigate(loginPage);
                   }}
@@ -387,6 +395,8 @@ export function Header(props: HeaderProps) {
                     setMenuOpen(false);
                     const loginPage = props.activePlatform === "moltx"
                       ? { kind: "moltx-login", initialMode: "register" as const }
+                      : props.activePlatform === "clawstr"
+                      ? { kind: "clawstr-login" as const }
                       : { kind: "login", initialMode: "register" as const };
                     props.onNavigate(loginPage);
                   }}

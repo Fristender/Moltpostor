@@ -91,7 +91,11 @@ export function WatchHistoryPage() {
                     <>
                       {item.title && (
                         <a
-                          href={`#/post/${encodeURIComponent(item.id)}`}
+                          href={item.platform === "clawstr"
+                            ? `#/clawstr/post/${encodeURIComponent(item.id)}`
+                            : item.platform === "moltx"
+                            ? `#/moltx/post/${encodeURIComponent(item.id)}`
+                            : `#/moltbook/post/${encodeURIComponent(item.id)}`}
                           style={{ fontWeight: 600, display: "block", marginBottom: 4 }}
                         >
                           {item.title}
@@ -106,15 +110,21 @@ export function WatchHistoryPage() {
                   )}
                   
                   {item.type === "user" && (
-                    <a href={`#/moltbook/u/${encodeURIComponent(item.name ?? item.id)}`} style={{ fontWeight: 600 }}>
-                      u/{item.name ?? item.id}
+                    <a href={item.platform === "clawstr"
+                      ? `#/clawstr/user/${encodeURIComponent(item.id)}`
+                      : item.platform === "moltx"
+                      ? `#/moltx/user/${encodeURIComponent(item.name ?? item.id)}`
+                      : `#/moltbook/u/${encodeURIComponent(item.name ?? item.id)}`} style={{ fontWeight: 600 }}>
+                      {item.platform === "clawstr" ? "" : "u/"}{item.name ?? item.id}
                     </a>
                   )}
                   
                   {item.type === "submolt" && (
                     <>
-                      <a href={`#/moltbook/m/${encodeURIComponent(item.name ?? item.id)}`} style={{ fontWeight: 600 }}>
-                        m/{item.name ?? item.id}
+                      <a href={item.platform === "clawstr"
+                        ? `#/clawstr/c/${encodeURIComponent(item.name ?? item.id)}`
+                        : `#/moltbook/m/${encodeURIComponent(item.name ?? item.id)}`} style={{ fontWeight: 600 }}>
+                        {item.platform === "clawstr" ? "/c/" : "m/"}{item.name ?? item.id}
                       </a>
                       {item.title && (
                         <span style={{ opacity: 0.7, marginLeft: 8 }}>({item.title})</span>
@@ -129,17 +139,27 @@ export function WatchHistoryPage() {
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 4, flexShrink: 0 }}>
                   {item.type === "post" && (
-                    <a href={`#/post/${encodeURIComponent(item.id)}`} style={{ fontSize: 12 }}>
+                    <a href={item.platform === "clawstr"
+                      ? `#/clawstr/post/${encodeURIComponent(item.id)}`
+                      : item.platform === "moltx"
+                      ? `#/moltx/post/${encodeURIComponent(item.id)}`
+                      : `#/moltbook/post/${encodeURIComponent(item.id)}`} style={{ fontSize: 12 }}>
                       Open
                     </a>
                   )}
                   {item.type === "user" && (
-                    <a href={`#/moltbook/u/${encodeURIComponent(item.name ?? item.id)}`} style={{ fontSize: 12 }}>
+                    <a href={item.platform === "clawstr"
+                      ? `#/clawstr/user/${encodeURIComponent(item.id)}`
+                      : item.platform === "moltx"
+                      ? `#/moltx/user/${encodeURIComponent(item.name ?? item.id)}`
+                      : `#/moltbook/u/${encodeURIComponent(item.name ?? item.id)}`} style={{ fontSize: 12 }}>
                       Open
                     </a>
                   )}
                   {item.type === "submolt" && (
-                    <a href={`#/moltbook/m/${encodeURIComponent(item.name ?? item.id)}`} style={{ fontSize: 12 }}>
+                    <a href={item.platform === "clawstr"
+                      ? `#/clawstr/c/${encodeURIComponent(item.name ?? item.id)}`
+                      : `#/moltbook/m/${encodeURIComponent(item.name ?? item.id)}`} style={{ fontSize: 12 }}>
                       Open
                     </a>
                   )}

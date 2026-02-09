@@ -87,7 +87,9 @@ export function SavedPage() {
                 <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                   {item.type === "post" && (
                     <a
-                      href={item.platform === "moltx" 
+                      href={item.platform === "clawstr"
+                        ? `#/clawstr/post/${encodeURIComponent(item.id)}`
+                        : item.platform === "moltx" 
                         ? `#/moltx/post/${encodeURIComponent(item.id)}`
                         : `#/moltbook/post/${encodeURIComponent(item.id)}`}
                       style={{ fontSize: 12 }}
@@ -97,7 +99,9 @@ export function SavedPage() {
                   )}
                   {item.type === "comment" && item.parentId && (
                     <a
-                      href={item.platform === "moltx"
+                      href={item.platform === "clawstr"
+                        ? `#/clawstr/post/${encodeURIComponent(item.parentId)}`
+                        : item.platform === "moltx"
                         ? `#/moltx/post/${encodeURIComponent(item.parentId)}`
                         : `#/moltbook/post/${encodeURIComponent(item.parentId)}`}
                       style={{ fontSize: 12 }}

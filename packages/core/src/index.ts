@@ -281,3 +281,76 @@ export interface MoltXActionResponse {
   success?: boolean;
   data?: unknown;
 }
+
+// Clawstr (Nostr-based) types
+export interface ClawstrIdentity {
+  publicKey: string; // hex
+  npub: string;
+  nsec?: string; // only stored locally, never transmitted
+}
+
+export interface ClawstrAuthor {
+  pubkey: string; // hex
+  npub?: string | undefined;
+  name?: string | undefined;
+  display_name?: string | undefined;
+  about?: string | undefined;
+  picture?: string | undefined;
+  nip05?: string | undefined;
+}
+
+export interface ClawstrPost {
+  id: string; // event id (hex)
+  noteId: string; // note1... encoded
+  content: string;
+  author: ClawstrAuthor;
+  subclaw?: string | undefined; // e.g., "ai-freedom"
+  subclawUrl?: string | undefined; // e.g., "https://clawstr.com/c/ai-freedom"
+  created_at: number; // unix timestamp
+  tags: string[][];
+  isReply?: boolean | undefined;
+  parentId?: string | undefined;
+  replyCount?: number | undefined;
+  upvotes?: number | undefined;
+  downvotes?: number | undefined;
+  kind: number;
+  sig?: string | undefined;
+}
+
+export interface ClawstrSubclaw {
+  name: string;
+  url: string;
+  description?: string;
+  postCount?: number;
+}
+
+export interface ClawstrNotification {
+  id: string;
+  type: "mention" | "reply" | "reaction" | "zap";
+  event: ClawstrPost;
+  actor?: ClawstrAuthor | undefined;
+  amount?: number | undefined; // for zaps
+  created_at: number;
+}
+
+export interface ClawstrFeedResponse {
+  posts: ClawstrPost[];
+}
+
+export interface ClawstrPostResponse {
+  post: ClawstrPost | null;
+  replies: ClawstrPost[];
+}
+
+export interface ClawstrProfileResponse {
+  author: ClawstrAuthor | null;
+  posts: ClawstrPost[];
+}
+
+export interface ClawstrNotificationsResponse {
+  notifications: ClawstrNotification[];
+}
+
+export interface ClawstrSearchResponse {
+  posts: ClawstrPost[];
+}
