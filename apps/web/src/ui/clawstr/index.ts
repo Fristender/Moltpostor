@@ -7,3 +7,5 @@ export { ClawstrCompose } from "./ClawstrCompose";
 export { ClawstrSubclawFeed } from "./ClawstrSubclawFeed";
 export { ClawstrSearch } from "./ClawstrSearch";
 export { ClawstrNotifications } from "./ClawstrNotifications";
+export { useClawstrVotes } from "./useClawstrVotes";
+export * from "./clawstrPins";

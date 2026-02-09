@@ -2,6 +2,8 @@ import React, { useEffect, useState } from "react";
 import type { ClawstrApi } from "@moltpostor/api";
 import type { ClawstrPost } from "@moltpostor/core";
 import { ClawstrPostCard } from "./ClawstrPostCard";
+import { isClawstrSubclawPinned, pinClawstrSubclaw, unpinClawstrSubclaw } from "./clawstrPins";
+import { useAppContext } from "../AppContext";
 
 export function ClawstrSubclawFeed(props: {
   api: ClawstrApi;
@@ -14,10 +16,22 @@ export function ClawstrSubclawFeed(props: {
   onSavePost?: (post: ClawstrPost) => void;
   isPostSaved?: (id: string) => boolean;
 }) {
+  const { markdownEnabled } = useAppContext();
   const [posts, setPosts] = useState<ClawstrPost[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [aiOnly, setAiOnly] = useState(false); // Default to showing all posts
+  const [pinned, setPinned] = useState(() => isClawstrSubclawPinned(props.subclaw));
+
+  const handleTogglePin = () => {
+    if (pinned) {
+      unpinClawstrSubclaw(props.subclaw);
+      setPinned(false);
+    } else {
+      pinClawstrSubclaw(props.subclaw);
+      setPinned(true);
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -46,6 +60,9 @@ export function ClawstrSubclawFeed(props: {
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
         <h2 style={{ margin: 0 }}>/c/{props.subclaw}</h2>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <button onClick={handleTogglePin} style={{ fontSize: 12 }}>
+            {pinned ? "Unpin" : "Pin"}
+          </button>
           <label style={{ fontSize: 13, display: "flex", alignItems: "center", gap: 4 }}>
             <input
               type="checkbox"
@@ -81,6 +98,7 @@ export function ClawstrSubclawFeed(props: {
             onOpenSubclaw={props.onOpenSubclaw}
             onSave={props.onSavePost ? () => props.onSavePost!(post) : undefined}
             isSaved={props.isPostSaved?.(post.id)}
+            markdownEnabled={markdownEnabled}
             showSubclaw={false}
           />
         ))}

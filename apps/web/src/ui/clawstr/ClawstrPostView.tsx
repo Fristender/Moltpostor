@@ -3,6 +3,7 @@ import type { ClawstrApi } from "@moltpostor/api";
 import type { ClawstrPost } from "@moltpostor/core";
 import { ClawstrPostCard } from "./ClawstrPostCard";
 import { useAppContext } from "../AppContext";
+import { useClawstrVotes } from "./useClawstrVotes";
 
 export function ClawstrPostView(props: {
   api: ClawstrApi;
@@ -12,7 +13,8 @@ export function ClawstrPostView(props: {
   onOpenUser: (npub: string) => void;
   onOpenSubclaw: (name: string) => void;
 }) {
-  const { addToHistory, cacheContent, getCachedContent, saveItem, unsaveItem, isSaved } = useAppContext();
+  const { addToHistory, cacheContent, getCachedContent, saveItem, unsaveItem, isSaved, markdownEnabled } = useAppContext();
+  const { hasUpvoted, hasDownvoted, setVote } = useClawstrVotes();
   const [post, setPost] = useState<ClawstrPost | null>(null);
   const [replies, setReplies] = useState<ClawstrPost[]>([]);
   const [loading, setLoading] = useState(true);
@@ -20,6 +22,8 @@ export function ClawstrPostView(props: {
   const [replyContent, setReplyContent] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [showCacheIndicator, setShowCacheIndicator] = useState(false);
+  const [votingUp, setVotingUp] = useState(false);
+  const [votingDown, setVotingDown] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -104,20 +108,40 @@ export function ClawstrPostView(props: {
   };
 
   const handleUpvote = async () => {
+    if (votingUp) return;
+    setVotingUp(true);
     try {
-      await props.api.upvote(props.postId);
-      alert("Upvoted!");
+      if (hasUpvoted(props.postId)) {
+        // Remove upvote (send downvote to cancel)
+        await props.api.downvote(props.postId);
+        setVote(props.postId, null);
+      } else {
+        await props.api.upvote(props.postId);
+        setVote(props.postId, "up");
+      }
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to upvote");
+      alert(err instanceof Error ? err.message : "Failed to vote");
+    } finally {
+      setVotingUp(false);
     }
   };
 
   const handleDownvote = async () => {
+    if (votingDown) return;
+    setVotingDown(true);
     try {
-      await props.api.downvote(props.postId);
-      alert("Downvoted!");
+      if (hasDownvoted(props.postId)) {
+        // Remove downvote (send upvote to cancel)
+        await props.api.upvote(props.postId);
+        setVote(props.postId, null);
+      } else {
+        await props.api.downvote(props.postId);
+        setVote(props.postId, "down");
+      }
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to downvote");
+      alert(err instanceof Error ? err.message : "Failed to vote");
+    } finally {
+      setVotingDown(false);
     }
   };
 
@@ -152,13 +176,45 @@ export function ClawstrPostView(props: {
           }
         }}
         isSaved={isSaved("clawstr", "post", post.id)}
+        markdownEnabled={markdownEnabled}
         showSubclaw
       />
 
       {props.isAuthed && (
         <div style={{ marginTop: 16, display: "flex", gap: 8 }}>
-          <button onClick={handleUpvote}>+ Upvote</button>
-          <button onClick={handleDownvote}>- Downvote</button>
+          <button 
+            onClick={handleUpvote} 
+            disabled={votingUp}
+            style={{
+              background: hasUpvoted(props.postId) ? "var(--color-bg-accent)" : undefined,
+              fontWeight: hasUpvoted(props.postId) ? 700 : 400,
+            }}
+          >
+            {votingUp ? "..." : hasUpvoted(props.postId) ? "- Remove Upvote" : "+ Upvote"}
+          </button>
+          <button 
+            onClick={handleDownvote} 
+            disabled={votingDown}
+            style={{
+              background: hasDownvoted(props.postId) ? "var(--color-bg-accent)" : undefined,
+              fontWeight: hasDownvoted(props.postId) ? 700 : 400,
+            }}
+          >
+            {votingDown ? "..." : hasDownvoted(props.postId) ? "- Remove Downvote" : "- Downvote"}
+          </button>
+        </div>
+      )}
+
+      {post.subclaw && (
+        <div style={{ marginTop: 12 }}>
+          <a
+            href={`https://clawstr.com/c/${post.subclaw}/post/${post.id}`}
+            target="_blank"
+            rel="noreferrer noopener"
+            style={{ fontSize: 13 }}
+          >
+            View on Clawstr
+          </a>
         </div>
       )}
 
@@ -190,6 +246,7 @@ export function ClawstrPostView(props: {
               onOpenPost={props.onOpenPost}
               onOpenUser={props.onOpenUser}
               onOpenSubclaw={props.onOpenSubclaw}
+              markdownEnabled={markdownEnabled}
               compact
               showSubclaw={false}
             />

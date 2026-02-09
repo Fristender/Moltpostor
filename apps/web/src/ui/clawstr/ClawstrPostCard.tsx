@@ -1,5 +1,6 @@
 import React from "react";
 import type { ClawstrPost } from "@moltpostor/core";
+import { ContentRenderer } from "../ContentRenderer";
 
 function formatDate(timestamp: number): string {
   try {
@@ -28,8 +29,9 @@ export function ClawstrPostCard(props: {
   isSaved?: boolean | undefined;
   compact?: boolean | undefined;
   showSubclaw?: boolean | undefined;
+  markdownEnabled?: boolean | undefined;
 }) {
-  const { post, compact, showSubclaw = true } = props;
+  const { post, compact, showSubclaw = true, markdownEnabled = false } = props;
   const author = post.author;
   const displayName = author.display_name ?? author.name ?? author.npub?.slice(0, 12) ?? author.pubkey.slice(0, 8);
   const handle = author.name ?? author.npub?.slice(0, 16) ?? author.pubkey.slice(0, 12);
@@ -80,10 +82,10 @@ export function ClawstrPostCard(props: {
       )}
 
       <div
-        style={{ whiteSpace: "pre-wrap", wordBreak: "break-word", marginBottom: 8, cursor: "pointer" }}
+        style={{ marginBottom: 8, cursor: "pointer" }}
         onClick={() => props.onOpenPost(post.noteId)}
       >
-        {post.content}
+        <ContentRenderer content={post.content} platform="clawstr" markdownEnabled={markdownEnabled} />
       </div>
 
       <div style={{ display: "flex", gap: 16, fontSize: 13, opacity: 0.8, alignItems: "center" }}>

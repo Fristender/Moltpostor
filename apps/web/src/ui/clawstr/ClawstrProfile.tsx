@@ -3,6 +3,7 @@ import type { ClawstrApi } from "@moltpostor/api";
 import type { ClawstrAuthor, ClawstrPost } from "@moltpostor/core";
 import { ClawstrPostCard } from "./ClawstrPostCard";
 import { useAppContext } from "../AppContext";
+import { isClawstrUserPinned, pinClawstrUser, unpinClawstrUser } from "./clawstrPins";
 
 export function ClawstrProfile(props: {
   api: ClawstrApi;
@@ -12,11 +13,23 @@ export function ClawstrProfile(props: {
   onOpenUser: (npub: string) => void;
   onOpenSubclaw: (name: string) => void;
 }) {
-  const { addToHistory, cacheContent, getCachedContent } = useAppContext();
+  const { addToHistory, cacheContent, getCachedContent, markdownEnabled } = useAppContext();
   const [author, setAuthor] = useState<ClawstrAuthor | null>(null);
   const [posts, setPosts] = useState<ClawstrPost[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [pinned, setPinned] = useState(() => isClawstrUserPinned(props.npub));
+
+  const handleTogglePin = () => {
+    if (pinned) {
+      unpinClawstrUser(props.npub);
+      setPinned(false);
+    } else {
+      const name = author?.display_name ?? author?.name ?? props.npub.slice(0, 12);
+      pinClawstrUser(props.npub, name);
+      setPinned(true);
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -106,6 +119,11 @@ export function ClawstrProfile(props: {
           <p style={{ fontSize: 12, opacity: 0.6, marginTop: 8 }}>
             Pubkey: {author.pubkey.slice(0, 16)}...
           </p>
+          <div style={{ marginTop: 12, display: "flex", gap: 8 }}>
+            <button onClick={handleTogglePin}>
+              {pinned ? "Unpin User" : "Pin User"}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -122,6 +140,7 @@ export function ClawstrProfile(props: {
               onOpenPost={props.onOpenPost}
               onOpenUser={props.onOpenUser}
               onOpenSubclaw={props.onOpenSubclaw}
+              markdownEnabled={markdownEnabled}
               showSubclaw
             />
           ))}

@@ -2,6 +2,8 @@ import React, { useEffect, useState } from "react";
 import type { ClawstrApi } from "@moltpostor/api";
 import type { ClawstrPost } from "@moltpostor/core";
 import { ClawstrPostCard } from "./ClawstrPostCard";
+import { getClawstrPinnedUsers, getClawstrPinnedSubclaws } from "./clawstrPins";
+import { useAppContext } from "../AppContext";
 
 export function ClawstrFeed(props: {
   api: ClawstrApi;
@@ -13,6 +15,7 @@ export function ClawstrFeed(props: {
   onSavePost?: (post: ClawstrPost) => void;
   isPostSaved?: (id: string) => boolean;
 }) {
+  const { markdownEnabled } = useAppContext();
   const [posts, setPosts] = useState<ClawstrPost[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -65,6 +68,39 @@ export function ClawstrFeed(props: {
         </div>
       )}
 
+      {(() => {
+        const users = getClawstrPinnedUsers();
+        const subclaws = getClawstrPinnedSubclaws();
+        if (users.length === 0 && subclaws.length === 0) return null;
+        return (
+          <div style={{ marginBottom: 16, padding: 12, border: "1px solid var(--color-border)", borderRadius: 8 }}>
+            <strong style={{ fontSize: 14 }}>Pinned</strong>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 8 }}>
+              {subclaws.map((s) => (
+                <a
+                  key={`s-${s}`}
+                  href="#"
+                  onClick={(e) => { e.preventDefault(); props.onOpenSubclaw(s); }}
+                  style={{ padding: "4px 8px", background: "var(--color-bg-accent)", borderRadius: 4, fontSize: 13 }}
+                >
+                  /c/{s}
+                </a>
+              ))}
+              {users.map((u) => (
+                <a
+                  key={`u-${u.npub}`}
+                  href="#"
+                  onClick={(e) => { e.preventDefault(); props.onOpenUser(u.npub); }}
+                  style={{ padding: "4px 8px", background: "var(--color-bg-accent)", borderRadius: 4, fontSize: 13 }}
+                >
+                  @{u.name}
+                </a>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
+
       {loading && <p>Loading posts from relays...</p>}
       {error && <p style={{ color: "crimson" }}>Error: {error}</p>}
 
@@ -82,6 +118,7 @@ export function ClawstrFeed(props: {
             onOpenSubclaw={props.onOpenSubclaw}
             onSave={props.onSavePost ? () => props.onSavePost!(post) : undefined}
             isSaved={props.isPostSaved?.(post.id)}
+            markdownEnabled={markdownEnabled}
             showSubclaw
           />
         ))}
