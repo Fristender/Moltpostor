@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import type { MoltXApi } from "@moltpostor/api";
 import type { MoltXPost } from "@moltpostor/core";
 import { MoltXPostCard } from "./MoltXPostCard";
+import { useAppContext } from "../AppContext";
 
 export function MoltXPostView(props: {
   api: MoltXApi;
@@ -10,36 +11,96 @@ export function MoltXPostView(props: {
   onOpenPost: (id: string) => void;
   onOpenUser: (name: string) => void;
 }) {
+  const { addToHistory, cacheContent, getCachedContent } = useAppContext();
   const [post, setPost] = useState<MoltXPost | null>(null);
   const [replies, setReplies] = useState<MoltXPost[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showCacheIndicator, setShowCacheIndicator] = useState(false);
   const [replyContent, setReplyContent] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
+    let cacheIndicatorTimeout: ReturnType<typeof setTimeout> | null = null;
+    let fetchCompleted = false;
     setError(null);
     setLoading(true);
+    setShowCacheIndicator(false);
+
+    // Try cache first
+    const cached = getCachedContent("moltx", "post", props.postId);
+    if (cached) {
+      setPost(cached.post as MoltXPost);
+      setReplies((cached.replies as MoltXPost[]) ?? []);
+      setLoading(false);
+      // Only show cache indicator after a delay (if fetch is slow)
+      cacheIndicatorTimeout = setTimeout(() => {
+        if (!cancelled && !fetchCompleted) setShowCacheIndicator(true);
+      }, 1000);
+    }
+
     (async () => {
       try {
         const res = await props.api.getPost(props.postId);
+        fetchCompleted = true;
         if (cancelled) return;
+        if (cacheIndicatorTimeout) {
+          clearTimeout(cacheIndicatorTimeout);
+          cacheIndicatorTimeout = null;
+        }
         // Handle nested response structure
         const resAny = res as unknown as { data?: { post?: MoltXPost; replies?: MoltXPost[] }; post?: MoltXPost; replies?: MoltXPost[] };
         const postData = resAny.data?.post ?? resAny.post ?? (resAny.data as MoltXPost | undefined);
-        setPost(postData && postData.id ? postData : null);
         const repliesData = resAny.data?.replies ?? resAny.replies ?? [];
-        setReplies(Array.isArray(repliesData) ? repliesData : []);
+        const validPost = postData && postData.id ? postData : null;
+        const validReplies = Array.isArray(repliesData) ? repliesData : [];
+        
+        setPost(validPost);
+        setReplies(validReplies);
+        setShowCacheIndicator(false);
+
+        // Cache the content
+        if (validPost) {
+          cacheContent({
+            id: props.postId,
+            platform: "moltx",
+            type: "post",
+            data: { post: validPost, replies: validReplies },
+          });
+        }
       } catch (e: unknown) {
+        fetchCompleted = true;
         if (cancelled) return;
-        setError(e instanceof Error ? e.message : String(e));
+        // Only show error if we don't have cached data
+        if (!getCachedContent("moltx", "post", props.postId)) {
+          setError(e instanceof Error ? e.message : String(e));
+        } else {
+          // Show cache indicator since we're using cached data due to error
+          setShowCacheIndicator(true);
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
     })();
-    return () => { cancelled = true; };
-  }, [props.api, props.postId]);
+    return () => { 
+      cancelled = true; 
+      if (cacheIndicatorTimeout) clearTimeout(cacheIndicatorTimeout);
+    };
+  }, [props.api, props.postId, cacheContent, getCachedContent]);
+
+  // Track in watch history when post is loaded
+  useEffect(() => {
+    if (!post) return;
+    const authorName = post.author?.name ?? post.author_name ?? "";
+    addToHistory({
+      id: props.postId,
+      platform: "moltx",
+      type: "post",
+      content: (post.content ?? "").slice(0, 200),
+      author: authorName,
+    });
+  }, [post, props.postId, addToHistory]);
 
   const handleLike = async (postId: string, liked: boolean) => {
     try {
@@ -81,12 +142,17 @@ export function MoltXPostView(props: {
     }
   };
 
-  if (loading) return <div>Loading...</div>;
-  if (error) return <div style={{ color: "crimson" }}>{error}</div>;
+  if (loading && !post) return <div>Loading...</div>;
+  if (error && !post) return <div style={{ color: "crimson" }}>{error}</div>;
   if (!post) return <div>Post not found.</div>;
 
   return (
     <section>
+      {showCacheIndicator && (
+        <div style={{ fontSize: 12, opacity: 0.6, marginBottom: 8, fontStyle: "italic" }}>
+          Showing cached version
+        </div>
+      )}
       <MoltXPostCard
         post={post}
         onOpenPost={props.onOpenPost}

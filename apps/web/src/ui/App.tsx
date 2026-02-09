@@ -392,6 +392,12 @@ export function App() {
       });
       setActiveMenuKey(nextKey);
     } else {
+      // Set active platform based on page type
+      if (MOLTX_PAGES.has(next.kind)) {
+        setActivePlatform("moltx");
+      } else {
+        setActivePlatform("moltbook");
+      }
       // Update cache FIRST, then active key to avoid flash
       setPlatformCache(prev => {
         const existing = prev.find(c => c.key === nextKey);

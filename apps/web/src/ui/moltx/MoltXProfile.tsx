@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import type { MoltXApi } from "@moltpostor/api";
 import type { MoltXAgent, MoltXPost } from "@moltpostor/core";
 import { MoltXPostCard } from "./MoltXPostCard";
+import { useAppContext } from "../AppContext";
 
 export function MoltXProfile(props: {
   api: MoltXApi;
@@ -10,40 +11,98 @@ export function MoltXProfile(props: {
   onOpenPost: (id: string) => void;
   onOpenUser: (name: string) => void;
 }) {
+  const { addToHistory, cacheContent, getCachedContent } = useAppContext();
   const [agent, setAgent] = useState<MoltXAgent | null>(null);
   const [posts, setPosts] = useState<MoltXPost[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showCacheIndicator, setShowCacheIndicator] = useState(false);
   const [following, setFollowing] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
+    let cacheIndicatorTimeout: ReturnType<typeof setTimeout> | null = null;
+    let fetchCompleted = false;
     setError(null);
     setLoading(true);
+    setShowCacheIndicator(false);
+
+    // Try cache first
+    const cached = getCachedContent("moltx", "user", props.name);
+    if (cached) {
+      setAgent(cached.agent as MoltXAgent);
+      setPosts((cached.posts as MoltXPost[]) ?? []);
+      setLoading(false);
+      // Only show cache indicator after a delay (if fetch is slow)
+      cacheIndicatorTimeout = setTimeout(() => {
+        if (!cancelled && !fetchCompleted) setShowCacheIndicator(true);
+      }, 1000);
+    }
+
     (async () => {
       try {
         const [profileRes, feedRes] = await Promise.all([
           props.api.getAgentProfile(props.name),
           props.api.getSpectateFeed(props.name, { limit: 20 }),
         ]);
+        fetchCompleted = true;
         if (cancelled) return;
+        if (cacheIndicatorTimeout) {
+          clearTimeout(cacheIndicatorTimeout);
+          cacheIndicatorTimeout = null;
+        }
         // Handle nested response structure
         const profileAny = profileRes as unknown as { data?: { agent?: MoltXAgent }; agent?: MoltXAgent };
         const agentData = profileAny.data?.agent ?? profileAny.agent ?? profileRes;
-        setAgent(agentData && (agentData as MoltXAgent).id ? agentData as MoltXAgent : null);
+        const validAgent = agentData && (agentData as MoltXAgent).id ? agentData as MoltXAgent : null;
+        
         const feedAny = feedRes as unknown as { data?: { posts?: MoltXPost[] }; posts?: MoltXPost[] };
         const feedData = feedAny.data?.posts ?? feedAny.posts ?? feedRes;
-        setPosts(Array.isArray(feedData) ? feedData : []);
+        const validPosts = Array.isArray(feedData) ? feedData : [];
+
+        setAgent(validAgent);
+        setPosts(validPosts);
+        setShowCacheIndicator(false);
+
+        // Cache the content
+        if (validAgent) {
+          cacheContent({
+            id: props.name,
+            platform: "moltx",
+            type: "user",
+            data: { agent: validAgent, posts: validPosts },
+          });
+        }
       } catch (e: unknown) {
+        fetchCompleted = true;
         if (cancelled) return;
-        setError(e instanceof Error ? e.message : String(e));
+        if (!getCachedContent("moltx", "user", props.name)) {
+          setError(e instanceof Error ? e.message : String(e));
+        } else {
+          setShowCacheIndicator(true);
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
     })();
-    return () => { cancelled = true; };
-  }, [props.api, props.name]);
+    return () => { 
+      cancelled = true; 
+      if (cacheIndicatorTimeout) clearTimeout(cacheIndicatorTimeout);
+    };
+  }, [props.api, props.name, cacheContent, getCachedContent]);
+
+  // Track in watch history when profile is loaded
+  useEffect(() => {
+    if (!agent) return;
+    addToHistory({
+      id: props.name,
+      platform: "moltx",
+      type: "user",
+      content: agent.description ?? "",
+      author: agent.name ?? props.name,
+    });
+  }, [agent, props.name, addToHistory]);
 
   const handleFollow = async () => {
     if (followLoading) return;
@@ -84,8 +143,8 @@ export function MoltXProfile(props: {
     }
   };
 
-  if (loading) return <div>Loading...</div>;
-  if (error) return <div style={{ color: "crimson" }}>{error}</div>;
+  if (loading && !agent) return <div>Loading...</div>;
+  if (error && !agent) return <div style={{ color: "crimson" }}>{error}</div>;
   if (!agent) return <div>Agent not found.</div>;
 
   const avatar = agent.avatar_emoji ?? agent.avatar_url ?? null;
@@ -93,6 +152,11 @@ export function MoltXProfile(props: {
 
   return (
     <section>
+      {showCacheIndicator && (
+        <div style={{ fontSize: 12, opacity: 0.6, marginBottom: 8, fontStyle: "italic" }}>
+          Showing cached version
+        </div>
+      )}
       {agent.banner_url && (
         <div style={{ marginBottom: 16 }}>
           <img src={agent.banner_url} alt="Banner" style={{ width: "100%", maxHeight: 200, objectFit: "cover", borderRadius: 8 }} />

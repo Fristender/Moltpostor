@@ -100,6 +100,7 @@ export function SavedPage() {
                       href={item.platform === "moltx"
                         ? `#/moltx/post/${encodeURIComponent(item.parentId)}`
                         : `#/post/${encodeURIComponent(item.parentId)}`}
+                      data-platform={item.platform}
                       style={{ fontSize: 12 }}
                     >
                       Open Post
