@@ -491,6 +491,174 @@ saveItem({
 3. Clear browser cache
 4. Restart dev server
 
+### 8. CSP Blocking WebSocket Connections
+
+**Problem:** For platforms using WebSocket (e.g., Nostr-based), connections fail silently due to Content Security Policy.
+
+**Solution:** Add WebSocket URLs to `connect-src` in `index.html`:
+```html
+connect-src 'self' 
+  https://api.example.com
+  wss://relay1.example.com 
+  wss://relay2.example.com;
+```
+
+### 9. Posts Fetched But Not Displaying
+
+**Problem:** API returns data, console shows posts fetched, but nothing renders on screen.
+
+**Solution:** Check the `isActive` logic in `renderPlatformPage`. The condition that determines whether to render platform pages must include your new platform's page set:
+```typescript
+const isActive = activePlatform === "newplatform" && NEWPLATFORM_PAGES.has(page.kind);
+```
+
+### 10. Infinite Re-render Loop with Caching
+
+**Problem:** Including `cacheContent` or `getCachedContent` in useEffect dependencies causes infinite loops.
+
+**Solution:** Remove these functions from useEffect dependencies. They are stable references from context but React's linter may complain. Use `// eslint-disable-line react-hooks/exhaustive-deps`:
+```typescript
+useEffect(() => {
+  // ... fetch and cache logic
+}, [props.api, props.postId]); // eslint-disable-line react-hooks/exhaustive-deps
+```
+
+### 11. Cached Data Disappearing When Offline
+
+**Problem:** Viewing a cached post while offline overwrites the cache with empty/failed API response.
+
+**Solution:** Only update state and cache if API returns valid data:
+```typescript
+if (res.post && res.post.author?.name) {
+  setPost(res.post);
+  cacheContent({ ... });
+} else if (!cachedPost && res.post) {
+  // No cache - show what we have even if incomplete
+  setPost(res.post);
+}
+```
+
+### 12. TypeScript exactOptionalPropertyTypes Errors
+
+**Problem:** TypeScript errors like "Type 'string | undefined' is not assignable to type 'string'" on optional properties.
+
+**Solution:** When `exactOptionalPropertyTypes` is enabled in tsconfig, add `| undefined` explicitly:
+```typescript
+// Instead of:
+export interface Post {
+  subclaw?: string;
+}
+
+// Use:
+export interface Post {
+  subclaw?: string | undefined;
+}
+```
+
+### 13. Markdown Toggle Not Working
+
+**Problem:** The "MD" button in TabBar doesn't affect your platform's content rendering.
+
+**Solution:** 
+1. Use `ContentRenderer` component instead of raw `{post.content}`
+2. Get `markdownEnabled` from `useAppContext()`
+3. Pass it through the component chain to `ContentRenderer`:
+```typescript
+const { markdownEnabled } = useAppContext();
+// ...
+<ContentRenderer 
+  content={post.content} 
+  platform="newplatform" 
+  markdownEnabled={markdownEnabled} 
+/>
+```
+
+### 14. Pinned Items Not Showing Names
+
+**Problem:** Pinned users/communities show truncated IDs instead of display names.
+
+**Solution:** Store additional metadata when pinning, not just the ID:
+```typescript
+// Instead of storing just the ID:
+type PinnedUser = {
+  id: string;
+  name: string;
+};
+
+export function pinUser(id: string, name: string): void {
+  const list = getUserList().filter((u) => u.id !== id);
+  list.unshift({ id, name });
+  setUserList(list);
+}
+```
+
+### 15. Local-Only State Not Persisting
+
+**Problem:** Vote states, pins, or other local-only features reset on page refresh.
+
+**Solution:** Create localStorage-backed hooks:
+```typescript
+const STORAGE_KEY = "moltpostor.newplatformVotes.v1";
+
+export function useVotes() {
+  const [votes, setVotes] = useState(() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      return raw ? JSON.parse(raw) : {};
+    } catch { return {}; }
+  });
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(votes));
+  }, [votes]);
+
+  return { votes, setVote: (id, vote) => setVotes(prev => ({...prev, [id]: vote})) };
+}
+```
+
+### 16. WebSocket-Based Platforms (e.g., Nostr)
+
+**Problem:** Platform doesn't use REST API but WebSocket connections to multiple relays.
+
+**Solution:** 
+1. Don't use `MoltbookHttpClient` - create a custom API class
+2. Manage WebSocket connections with proper cleanup
+3. Handle relay failures gracefully (try multiple relays)
+4. Consider using established libraries (e.g., `nostr-tools` for Nostr)
+5. Add all relay URLs to CSP `connect-src`
+
+```typescript
+export class WebSocketPlatformApi {
+  private pool: SimplePool;
+  private relays = ["wss://relay1.example.com", "wss://relay2.example.com"];
+
+  async getPosts(): Promise<Post[]> {
+    return new Promise((resolve) => {
+      const posts: Post[] = [];
+      const sub = this.pool.subscribeMany(this.relays, [{ kinds: [1], limit: 30 }], {
+        onevent: (event) => posts.push(this.eventToPost(event)),
+        oneose: () => { sub.close(); resolve(posts); },
+      });
+      setTimeout(() => { sub.close(); resolve(posts); }, 5000); // Timeout fallback
+    });
+  }
+}
+```
+
+### 17. Watch History Showing Wrong Identifiers
+
+**Problem:** Watch history shows truncated IDs or wrong field for user/post links.
+
+**Solution:** Ensure `WatchHistoryPage.tsx` uses the correct field for URL generation:
+```typescript
+// For platforms with different ID formats:
+href={item.platform === "newplatform"
+  ? item.type === "user"
+    ? `#/newplatform/user/${encodeURIComponent(item.id)}`  // Use item.id, not item.author
+    : `#/newplatform/post/${encodeURIComponent(item.id)}`
+  : /* other platforms */}
+```
+
 ## Testing Checklist
 
 - [ ] Tab appears and switches correctly
@@ -503,11 +671,21 @@ saveItem({
 - [ ] Direct URL access works (paste URL, refresh)
 - [ ] Saved items open correctly
 - [ ] Watch history tracks views
+- [ ] Watch history links navigate to correct pages
 - [ ] Caching works (view post, go offline, revisit)
+- [ ] Cached data shows correct author names (not truncated IDs)
 - [ ] Platform switches correctly from Saved/History pages
-- [ ] CSP doesn't block API requests
+- [ ] CSP doesn't block API requests (check console for errors)
+- [ ] WebSocket connections work (if applicable)
 - [ ] TypeScript compiles without errors
 - [ ] ESLint passes without errors
+- [ ] Markdown toggle (MD button) renders content correctly
+- [ ] Images display when markdown is enabled
+- [ ] Save/unsave posts works from feed and post view
+- [ ] Pin/unpin users and communities works
+- [ ] Pinned items display with correct names in feed
+- [ ] Vote states persist across page refreshes (if local-only)
+- [ ] "View on [Platform]" link opens correct external URL
 
 ## File Checklist
 
@@ -516,11 +694,23 @@ When adding a new platform, you'll typically modify these files:
 1. `packages/core/src/index.ts` - Types
 2. `packages/api/src/newplatform.ts` - API client (new file)
 3. `packages/api/src/index.ts` - Export API
-4. `apps/web/src/ui/useApiKeyStore.ts` - Platform type
-5. `apps/web/src/ui/TabBar.tsx` - Tab
-6. `apps/web/src/ui/App.tsx` - Routing, pages, API instance
-7. `apps/web/src/ui/Header.tsx` - Navigation
-8. `apps/web/src/ui/SavedPage.tsx` - Saved item links
-9. `apps/web/src/ui/WatchHistoryPage.tsx` - History item links
-10. `apps/web/src/ui/newplatform/*.tsx` - UI components (new files)
-11. `apps/web/index.html` - CSP (if needed)
+4. `packages/api/package.json` - Add dependencies (if needed, e.g., `nostr-tools`)
+5. `apps/web/src/ui/useApiKeyStore.ts` - Platform type
+6. `apps/web/src/ui/TabBar.tsx` - Tab
+7. `apps/web/src/ui/App.tsx` - Routing, pages, API instance, page rendering
+8. `apps/web/src/ui/Header.tsx` - Navigation
+9. `apps/web/src/ui/SavedPage.tsx` - Saved item links
+10. `apps/web/src/ui/WatchHistoryPage.tsx` - History item links
+11. `apps/web/src/ui/newplatform/*.tsx` - UI components (new files):
+    - `index.ts` - Barrel exports
+    - `NewPlatformFeed.tsx` - Main feed with pinned section
+    - `NewPlatformPostCard.tsx` - Reusable post card (use ContentRenderer!)
+    - `NewPlatformPostView.tsx` - Single post with replies, voting, save
+    - `NewPlatformProfile.tsx` - User profile with pin button
+    - `NewPlatformLogin.tsx` - Key/auth import
+    - `NewPlatformCompose.tsx` - Post creation
+    - `NewPlatformSearch.tsx` - Search functionality
+    - `NewPlatformNotifications.tsx` - Notifications (if supported)
+    - `newplatformPins.ts` - Local pin storage (if needed)
+    - `useNewPlatformVotes.ts` - Local vote state hook (if needed)
+12. `apps/web/index.html` - CSP (add API domains and WebSocket URLs)
