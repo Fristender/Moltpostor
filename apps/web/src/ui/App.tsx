@@ -607,9 +607,17 @@ export function App() {
   
   // Back button: use back stack if available, otherwise use logical parent
   const currentLogicalParent = getLogicalParent(currentPage);
+  
+  // Filter back stack to only include pages from the current platform
+  const currentPlatformBackStack = platformBackStack.filter(p => {
+    if (activePlatform === "moltx") return MOLTX_PAGES.has(p.kind);
+    if (activePlatform === "clawstr") return CLAWSTR_PAGES.has(p.kind);
+    return !MOLTX_PAGES.has(p.kind) && !CLAWSTR_PAGES.has(p.kind);
+  });
+  
   const canGoBack = activeTab === "menu" 
     ? (menuBackStack.length > 0 || currentLogicalParent !== null)
-    : (platformBackStack.length > 0 || currentLogicalParent !== null);
+    : (currentPlatformBackStack.length > 0 || currentLogicalParent !== null);
 
   const handlePrev = useCallback(() => {
     if (!canGoPrev) return;
@@ -644,15 +652,17 @@ export function App() {
         navigate(currentLogicalParent, { isBack: true });
       }
     } else {
-      const backPage = platformBackStack[platformBackStack.length - 1];
+      const backPage = currentPlatformBackStack[currentPlatformBackStack.length - 1];
       if (backPage) {
-        setPlatformBackStack(prev => prev.slice(0, -1));
+        // Remove this page and any pages after it from the stack
+        const backPageIndex = platformBackStack.lastIndexOf(backPage);
+        setPlatformBackStack(prev => prev.slice(0, backPageIndex));
         navigate(backPage, { isBack: true });
       } else if (currentLogicalParent) {
         navigate(currentLogicalParent, { isBack: true });
       }
     }
-  }, [canGoBack, activeTab, menuBackStack, platformBackStack, currentLogicalParent, navigate]);
+  }, [canGoBack, activeTab, menuBackStack, platformBackStack, currentPlatformBackStack, currentLogicalParent, navigate]);
 
   const handleSwitchTab = useCallback((tab: Tab) => {
     if (tab === activeTab) return;
