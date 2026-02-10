@@ -353,6 +353,17 @@ export function App() {
     return MENU_PAGES.has(initial.kind) ? pageKey(initial) : pageKey({ kind: "menu" });
   });
 
+  // Track last active key per platform for tab switching
+  const [lastPlatformKeys, setLastPlatformKeys] = useState<Record<Platform, string>>(() => {
+    const initial = parseRoute(window.location.hash);
+    const initialKey = pageKey(initial);
+    return {
+      moltbook: MOLTX_PAGES.has(initial.kind) || CLAWSTR_PAGES.has(initial.kind) ? pageKey({ kind: "feed" }) : initialKey,
+      moltx: MOLTX_PAGES.has(initial.kind) ? initialKey : pageKey({ kind: "moltx-feed" }),
+      clawstr: CLAWSTR_PAGES.has(initial.kind) ? initialKey : pageKey({ kind: "clawstr-feed" }),
+    };
+  });
+
   // Global navigation history (chronological, across all tabs)
   const [globalHistory, setGlobalHistory] = useState<Page[]>(() => {
     const initial = parseRoute(window.location.hash);
@@ -527,6 +538,9 @@ export function App() {
         return newCache;
       });
       setActivePlatformKey(nextKey);
+      // Track last active key per platform
+      const platform = MOLTX_PAGES.has(next.kind) ? "moltx" : CLAWSTR_PAGES.has(next.kind) ? "clawstr" : "moltbook";
+      setLastPlatformKeys(prev => ({ ...prev, [platform]: nextKey }));
     }
 
     setCurrentPage(next);
@@ -679,18 +693,21 @@ export function App() {
       navigate(targetPage, { isTabSwitch: true });
     } else if (tab === "moltx") {
       setActivePlatform("moltx");
-      const moltxPage = platformCache.find(c => c.key.startsWith("moltx-"))?.page ?? { kind: "moltx-feed" as const };
+      const lastKey = lastPlatformKeys.moltx;
+      const moltxPage = platformCache.find(c => c.key === lastKey)?.page ?? { kind: "moltx-feed" as const };
       navigate(moltxPage, { isTabSwitch: true });
     } else if (tab === "clawstr") {
       setActivePlatform("clawstr");
-      const clawstrPage = platformCache.find(c => c.key.startsWith("clawstr-"))?.page ?? { kind: "clawstr-feed" as const };
+      const lastKey = lastPlatformKeys.clawstr;
+      const clawstrPage = platformCache.find(c => c.key === lastKey)?.page ?? { kind: "clawstr-feed" as const };
       navigate(clawstrPage, { isTabSwitch: true });
     } else {
       setActivePlatform(tab);
-      const targetPage = platformCache.find(c => c.key === activePlatformKey && !c.key.startsWith("moltx-") && !c.key.startsWith("clawstr-"))?.page ?? { kind: "feed" as const };
+      const lastKey = lastPlatformKeys.moltbook;
+      const targetPage = platformCache.find(c => c.key === lastKey)?.page ?? { kind: "feed" as const };
       navigate(targetPage, { isTabSwitch: true });
     }
-  }, [activeTab, activeMenuKey, activePlatformKey, menuCache, platformCache, navigate, saveScrollPosition]);
+  }, [activeTab, activeMenuKey, activePlatformKey, menuCache, platformCache, navigate, saveScrollPosition, lastPlatformKeys]);
 
   const platformNavigate = useCallback((p: Page) => navigate(p), [navigate]);
   const menuNavigate = useCallback((p: Page) => navigate(p), [navigate]);
