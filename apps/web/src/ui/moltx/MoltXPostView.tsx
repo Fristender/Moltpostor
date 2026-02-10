@@ -3,6 +3,7 @@ import type { MoltXApi } from "@moltpostor/api";
 import type { MoltXPost } from "@moltpostor/core";
 import { MoltXPostCard } from "./MoltXPostCard";
 import { useAppContext } from "../AppContext";
+import { useMoltXLikes } from "./useMoltXLikes";
 
 export function MoltXPostView(props: {
   api: MoltXApi;
@@ -12,6 +13,7 @@ export function MoltXPostView(props: {
   onOpenUser: (name: string) => void;
 }) {
   const { addToHistory, cacheContent, getCachedContent, markdownEnabled } = useAppContext();
+  const { isLiked, setLiked } = useMoltXLikes();
   const [post, setPost] = useState<MoltXPost | null>(null);
   const [replies, setReplies] = useState<MoltXPost[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -111,8 +113,10 @@ export function MoltXPostView(props: {
     try {
       if (liked) {
         await props.api.unlikePost(postId);
+        setLiked(postId, false);
       } else {
         await props.api.likePost(postId);
+        setLiked(postId, true);
       }
       if (postId === post?.id) {
         setPost((p) => p ? { ...p, liked_by_me: !liked, like_count: (p.like_count ?? 0) + (liked ? -1 : 1) } : p);
@@ -163,6 +167,7 @@ export function MoltXPostView(props: {
         onOpenPost={props.onOpenPost}
         onOpenUser={props.onOpenUser}
         onLike={props.isAuthed ? handleLike : undefined}
+        isLikedOverride={isLiked(post.id)}
         markdownEnabled={markdownEnabled}
       />
 
@@ -195,6 +200,7 @@ export function MoltXPostView(props: {
             onOpenPost={props.onOpenPost}
             onOpenUser={props.onOpenUser}
             onLike={props.isAuthed ? handleLike : undefined}
+            isLikedOverride={isLiked(r.id)}
             markdownEnabled={markdownEnabled}
             compact
           />

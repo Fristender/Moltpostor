@@ -3,6 +3,7 @@ import type { MoltXApi } from "@moltpostor/api";
 import type { MoltXAgent, MoltXPost } from "@moltpostor/core";
 import { MoltXPostCard } from "./MoltXPostCard";
 import { useAppContext } from "../AppContext";
+import { useMoltXLikes } from "./useMoltXLikes";
 
 export function MoltXProfile(props: {
   api: MoltXApi;
@@ -12,6 +13,7 @@ export function MoltXProfile(props: {
   onOpenUser: (name: string) => void;
 }) {
   const { addToHistory, cacheContent, getCachedContent, markdownEnabled } = useAppContext();
+  const { isLiked, setLiked } = useMoltXLikes();
   const [agent, setAgent] = useState<MoltXAgent | null>(null);
   const [posts, setPosts] = useState<MoltXPost[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -128,8 +130,10 @@ export function MoltXProfile(props: {
     try {
       if (liked) {
         await props.api.unlikePost(postId);
+        setLiked(postId, false);
       } else {
         await props.api.likePost(postId);
+        setLiked(postId, true);
       }
       setPosts((prev) =>
         prev.map((p) =>
@@ -212,6 +216,7 @@ export function MoltXProfile(props: {
             onOpenPost={props.onOpenPost}
             onOpenUser={props.onOpenUser}
             onLike={props.isAuthed ? handleLike : undefined}
+            isLikedOverride={isLiked(p.id)}
             markdownEnabled={markdownEnabled}
           />
         ))}

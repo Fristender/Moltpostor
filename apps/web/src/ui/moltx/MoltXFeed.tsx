@@ -3,6 +3,7 @@ import type { MoltXApi } from "@moltpostor/api";
 import type { MoltXPost, MoltXFeedResponse } from "@moltpostor/core";
 import { MoltXPostCard } from "./MoltXPostCard";
 import { useAppContext } from "../AppContext";
+import { useMoltXLikes } from "./useMoltXLikes";
 
 type FeedType = "global" | "following" | "mentions";
 
@@ -30,6 +31,7 @@ export function MoltXFeed(props: {
   onWalletRequired?: () => void;
 }) {
   const { markdownEnabled } = useAppContext();
+  const { isLiked, setLiked } = useMoltXLikes();
   const [feedType, setFeedType] = useState<FeedType>(props.isAuthed ? "following" : "global");
   const [posts, setPosts] = useState<MoltXPost[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -68,8 +70,10 @@ export function MoltXFeed(props: {
     try {
       if (liked) {
         await props.api.unlikePost(postId);
+        setLiked(postId, false);
       } else {
         await props.api.likePost(postId);
+        setLiked(postId, true);
       }
       setPosts((prev) =>
         prev.map((p) =>
@@ -169,6 +173,7 @@ export function MoltXFeed(props: {
             onOpenUser={props.onOpenUser}
             onOpenHashtag={props.onOpenHashtag}
             onLike={props.isAuthed ? handleLike : undefined}
+            isLikedOverride={isLiked(p.id)}
             onSave={props.onSavePost ? () => props.onSavePost!(p) : undefined}
             isSaved={props.isPostSaved?.(p.id)}
             markdownEnabled={markdownEnabled}

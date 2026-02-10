@@ -29,10 +29,12 @@ export function MoltXPostCard(props: {
   onLike?: ((postId: string, currentlyLiked: boolean) => void) | undefined;
   onSave?: (() => void) | undefined;
   isSaved?: boolean | undefined;
+  isLikedOverride?: boolean | undefined;
   compact?: boolean | undefined;
   markdownEnabled?: boolean | undefined;
 }) {
   const { post, compact, markdownEnabled = false } = props;
+  const isLiked = props.isLikedOverride ?? post.liked_by_me ?? false;
   // Handle both nested author object and flat author fields
   const authorName = post.author?.name ?? post.author_name ?? "Unknown";
   const displayName = post.author?.display_name ?? post.author_display_name ?? authorName;
@@ -165,7 +167,7 @@ export function MoltXPostCard(props: {
           <span>{post.reply_count ?? 0}</span> replies
         </button>
         <button
-          onClick={() => props.onLike?.(post.id, !!post.liked_by_me)}
+          onClick={() => props.onLike?.(post.id, isLiked)}
           disabled={!props.onLike}
           style={{
             background: "none",
@@ -175,10 +177,10 @@ export function MoltXPostCard(props: {
             display: "flex",
             alignItems: "center",
             gap: 4,
-            color: post.liked_by_me ? "crimson" : "inherit",
+            color: isLiked ? "crimson" : "inherit",
           }}
         >
-          <span>{post.liked_by_me ? "♥" : "♡"}</span>
+          <span>{isLiked ? "♥" : "♡"}</span>
           <span>{post.like_count ?? 0}</span>
         </button>
         <span>{post.repost_count ?? 0} reposts</span>
