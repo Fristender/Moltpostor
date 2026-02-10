@@ -72,8 +72,13 @@ export function MoltXPostView(props: {
       } catch (e: unknown) {
         fetchCompleted = true;
         if (cancelled) return;
+        if (cacheIndicatorTimeout) {
+          clearTimeout(cacheIndicatorTimeout);
+          cacheIndicatorTimeout = null;
+        }
         // Only show error if we don't have cached data
-        if (!getCachedContent("moltx", "post", props.postId)) {
+        const cachedData = getCachedContent("moltx", "post", props.postId);
+        if (!cachedData) {
           setError(e instanceof Error ? e.message : String(e));
         } else {
           // Show cache indicator since we're using cached data due to error
@@ -87,7 +92,7 @@ export function MoltXPostView(props: {
       cancelled = true; 
       if (cacheIndicatorTimeout) clearTimeout(cacheIndicatorTimeout);
     };
-  }, [props.api, props.postId, cacheContent, getCachedContent]);
+  }, [props.api, props.postId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Track in watch history when post is loaded
   useEffect(() => {
@@ -148,7 +153,7 @@ export function MoltXPostView(props: {
 
   return (
     <section>
-      {showCacheIndicator && (
+      {showCacheIndicator && post && (
         <div style={{ fontSize: 12, opacity: 0.6, marginBottom: 8, fontStyle: "italic" }}>
           Showing cached version
         </div>
