@@ -38,7 +38,8 @@ export function useClawstrVotes() {
   const setVote = useCallback((postId: string, vote: VoteType) => {
     setVotes((prev) => {
       if (vote === null) {
-        const { [postId]: _, ...rest } = prev;
+        const { [postId]: _removed, ...rest } = prev;
+        void _removed;
         return rest;
       }
       return { ...prev, [postId]: vote };
