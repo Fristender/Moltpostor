@@ -659,14 +659,265 @@ href={item.platform === "newplatform"
   : /* other platforms */}
 ```
 
+### 18. Platform Switching Not Restoring Last Visited Page
+
+**Problem:** Switching from Platform A to Platform B and back to Platform A shows the wrong page (e.g., shows a post instead of the feed you navigated back to).
+
+**Solution:** Track the last active page key per platform separately, not just the first cached page:
+```typescript
+// Add state to track last active key per platform
+const [lastPlatformKeys, setLastPlatformKeys] = useState<Record<Platform, string>>(() => ({
+  moltbook: pageKey({ kind: "feed" }),
+  moltx: pageKey({ kind: "moltx-feed" }),
+  newplatform: pageKey({ kind: "newplatform-feed" }),
+}));
+
+// Update when navigating within a platform
+const platform = NEWPLATFORM_PAGES.has(next.kind) ? "newplatform" : /* ... */;
+setLastPlatformKeys(prev => ({ ...prev, [platform]: nextKey }));
+
+// Use when switching tabs
+const handleSwitchTab = (tab: Tab) => {
+  if (tab === "newplatform") {
+    const lastKey = lastPlatformKeys.newplatform;
+    const page = platformCache.find(c => c.key === lastKey)?.page ?? { kind: "newplatform-feed" };
+    navigate(page, { isTabSwitch: true });
+  }
+};
+```
+
+### 19. API Doesn't Return Vote/Like Status
+
+**Problem:** The API doesn't return whether the current user has liked/voted on a post (no `liked_by_me` field), so like state resets on page refresh.
+
+**Solution:** Create a localStorage-backed hook to persist vote/like state locally:
+```typescript
+const STORAGE_KEY = "moltpostor.newplatformLikes.v1";
+
+export function useLikes() {
+  const [likes, setLikes] = useState<Record<string, boolean>>(() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      return raw ? JSON.parse(raw) : {};
+    } catch { return {}; }
+  });
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(likes));
+  }, [likes]);
+
+  const isLiked = (postId: string) => likes[postId] ?? false;
+  const setLiked = (postId: string, liked: boolean) => {
+    setLikes(prev => liked ? { ...prev, [postId]: true } : Object.fromEntries(
+      Object.entries(prev).filter(([k]) => k !== postId)
+    ));
+  };
+
+  return { isLiked, setLiked };
+}
+```
+
+Then use `isLikedOverride` prop pattern:
+```typescript
+<PostCard
+  post={post}
+  isLikedOverride={isLiked(post.id)}
+  onLike={(id, currentlyLiked) => {
+    api.likePost(id);
+    setLiked(id, !currentlyLiked);
+  }}
+/>
+```
+
+### 20. Fetching Reaction Counts for Posts and Replies
+
+**Problem:** For platforms where reactions are separate events (e.g., Nostr), you need to fetch and count reactions separately.
+
+**Solution:** Fetch reactions in parallel with posts/replies, then map counts back:
+```typescript
+async getPost(id: string): Promise<PostResponse> {
+  const [postEvents, replyEvents, reactionEvents] = await Promise.all([
+    this.queryRelays({ ids: [id] }),
+    this.queryRelays({ kinds: [1111], "#e": [id], limit: 50 }),
+    this.queryRelays({ kinds: [7], "#e": [id], limit: 100 }),  // Reactions
+  ]);
+
+  // Count reactions for main post
+  let upvotes = 0, downvotes = 0;
+  for (const r of reactionEvents) {
+    if (r.content === "+" || r.content === "👍") upvotes++;
+    else if (r.content === "-" || r.content === "👎") downvotes++;
+  }
+
+  // For replies, fetch all reactions in one query
+  const replyIds = replyEvents.map(e => e.id);
+  const replyReactions = await this.queryRelays({ kinds: [7], "#e": replyIds, limit: 500 });
+  
+  // Map reactions to replies
+  const reactionCounts = new Map<string, { up: number; down: number }>();
+  for (const r of replyReactions) {
+    const targetId = r.tags.find(t => t[0] === "e")?.[1];
+    if (!targetId) continue;
+    const current = reactionCounts.get(targetId) ?? { up: 0, down: 0 };
+    if (r.content === "+") current.up++;
+    else if (r.content === "-") current.down++;
+    reactionCounts.set(targetId, current);
+  }
+
+  return { post: { ...post, upvotes, downvotes }, replies };
+}
+```
+
+### 21. Platform-Specific Back Navigation
+
+**Problem:** Pressing back on a Platform A post navigates to a Platform B page that was visited earlier.
+
+**Solution:** Filter the back stack to only include pages from the current platform:
+```typescript
+const currentPlatformBackStack = useMemo(() => {
+  return platformBackStack.filter(page => {
+    if (activePlatform === "newplatform") return NEWPLATFORM_PAGES.has(page.kind);
+    if (activePlatform === "moltx") return MOLTX_PAGES.has(page.kind);
+    return !NEWPLATFORM_PAGES.has(page.kind) && !MOLTX_PAGES.has(page.kind);
+  });
+}, [platformBackStack, activePlatform]);
+
+const handleBack = () => {
+  const backPage = currentPlatformBackStack[currentPlatformBackStack.length - 1];
+  if (backPage) {
+    navigate(backPage, { isBack: true });
+  }
+};
+```
+
+### 22. Mobile-Friendly Platform Selector
+
+**Problem:** Multiple platform tabs overflow on mobile screens.
+
+**Solution:** Convert tabs to a dropdown selector that opens upward:
+```typescript
+<div style={{ position: "relative" }}>
+  <button onClick={() => setOpen(!open)}>
+    {activePlatform} ▼
+  </button>
+  {open && (
+    <div style={{
+      position: "absolute",
+      bottom: "100%",  // Opens upward
+      left: 0,
+      background: "var(--color-bg)",
+      border: "1px solid var(--color-border)",
+      borderRadius: 4,
+      minWidth: 120,
+    }}>
+      {platforms.map(p => (
+        <button key={p} onClick={() => { onSwitchTab(p); setOpen(false); }}>
+          {p}
+        </button>
+      ))}
+    </div>
+  )}
+</div>
+```
+
+### 23. Post URLs Should Include Context (Subcommunity/Subclaw)
+
+**Problem:** Post URLs like `#/platform/post/123` lose context about which subcommunity the post belongs to.
+
+**Solution:** Include subcommunity in the URL for proper navigation and display:
+```typescript
+// pageToHash
+case "newplatform-post": 
+  return page.subcommunity 
+    ? `#/newplatform/c/${encodeURIComponent(page.subcommunity)}/post/${encodeURIComponent(page.id)}`
+    : `#/newplatform/post/${encodeURIComponent(page.id)}`;
+
+// parseRoute
+if (parts[1] === "c" && parts[2] && parts[3] === "post" && parts[4]) {
+  return { 
+    kind: "newplatform-post", 
+    id: decodeURIComponent(parts[4]),
+    subcommunity: decodeURIComponent(parts[2])
+  };
+}
+```
+
+### 24. Registration Should Allow Setting Profile Fields
+
+**Problem:** New account registration only generates/imports keys but doesn't set username or display name.
+
+**Solution:** Add profile fields to the login/registration component and update the profile after key setup:
+```typescript
+function NewPlatformLogin(props: { api: Api; onSetKey: (key: string) => void }) {
+  const [username, setUsername] = useState("");
+  const [displayName, setDisplayName] = useState("");
+
+  const handleRegister = async () => {
+    const key = generateNewKey();
+    props.onSetKey(key);
+    
+    // Update profile with user-provided info
+    if (username || displayName) {
+      await props.api.updateProfile({
+        name: username || undefined,
+        display_name: displayName || undefined,
+      });
+    }
+  };
+
+  return (
+    <form>
+      <input placeholder="Username" value={username} onChange={e => setUsername(e.target.value)} />
+      <input placeholder="Display Name" value={displayName} onChange={e => setDisplayName(e.target.value)} />
+      <button onClick={handleRegister}>Create Account</button>
+    </form>
+  );
+}
+```
+
+### 25. "Showing cached version" Flash on Fast Networks
+
+**Problem:** The cache indicator briefly flashes even when the network request completes quickly.
+
+**Solution:** Track whether fetch completed before showing the indicator, and clear timeout in catch block:
+```typescript
+useEffect(() => {
+  let fetchCompleted = false;
+  let timeoutId: number | undefined;
+
+  const cached = getCachedContent(...);
+  if (cached) {
+    setData(cached);
+    timeoutId = setTimeout(() => {
+      if (!fetchCompleted) setShowCacheIndicator(true);
+    }, 1000);
+  }
+
+  api.getData().then(res => {
+    fetchCompleted = true;
+    if (timeoutId) clearTimeout(timeoutId);
+    setShowCacheIndicator(false);
+    if (res.data) setData(res.data);
+  }).catch(() => {
+    fetchCompleted = true;
+    if (timeoutId) clearTimeout(timeoutId);
+    // Keep showing cached data, indicator already set if needed
+  });
+
+  return () => { if (timeoutId) clearTimeout(timeoutId); };
+}, []);
+```
+
 ## Testing Checklist
 
 - [ ] Tab appears and switches correctly
 - [ ] Login/API key import works
+- [ ] Registration allows setting username/display name
 - [ ] Feed loads and displays posts
 - [ ] Clicking post opens post view
 - [ ] Clicking user opens profile
 - [ ] Back/forward navigation works
+- [ ] Back button stays within current platform (doesn't jump to other platforms)
 - [ ] URL updates correctly on navigation
 - [ ] Direct URL access works (paste URL, refresh)
 - [ ] Saved items open correctly
@@ -674,18 +925,25 @@ href={item.platform === "newplatform"
 - [ ] Watch history links navigate to correct pages
 - [ ] Caching works (view post, go offline, revisit)
 - [ ] Cached data shows correct author names (not truncated IDs)
+- [ ] "Showing cached version" indicator doesn't flash on fast networks
 - [ ] Platform switches correctly from Saved/History pages
+- [ ] Switching platforms restores the last visited page (not first cached page)
 - [ ] CSP doesn't block API requests (check console for errors)
 - [ ] WebSocket connections work (if applicable)
 - [ ] TypeScript compiles without errors
-- [ ] ESLint passes without errors
+- [ ] ESLint passes without errors (run `npm run lint`)
 - [ ] Markdown toggle (MD button) renders content correctly
 - [ ] Images display when markdown is enabled
 - [ ] Save/unsave posts works from feed and post view
 - [ ] Pin/unpin users and communities works
 - [ ] Pinned items display with correct names in feed
 - [ ] Vote states persist across page refreshes (if local-only)
+- [ ] Vote/like buttons show correct state after page reload
+- [ ] Upvote/downvote works on replies/comments (if supported)
+- [ ] Net vote count displays correctly (upvotes - downvotes)
 - [ ] "View on [Platform]" link opens correct external URL
+- [ ] Post URLs include subcommunity context where applicable
+- [ ] Platform selector works on mobile (dropdown opens upward)
 
 ## File Checklist
 
