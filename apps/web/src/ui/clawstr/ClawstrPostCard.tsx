@@ -27,6 +27,10 @@ export function ClawstrPostCard(props: {
   onOpenSubclaw?: ((name: string) => void) | undefined;
   onSave?: (() => void) | undefined;
   isSaved?: boolean | undefined;
+  onUpvote?: (() => void) | undefined;
+  onDownvote?: (() => void) | undefined;
+  hasUpvoted?: boolean | undefined;
+  hasDownvoted?: boolean | undefined;
   compact?: boolean | undefined;
   showSubclaw?: boolean | undefined;
   markdownEnabled?: boolean | undefined;
@@ -89,6 +93,48 @@ export function ClawstrPostCard(props: {
       </div>
 
       <div style={{ display: "flex", gap: 16, fontSize: 13, opacity: 0.8, alignItems: "center" }}>
+        {props.onUpvote ? (
+          <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            <button
+              onClick={props.onUpvote}
+              style={{
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                padding: 0,
+                color: props.hasUpvoted ? "green" : "inherit",
+                fontWeight: props.hasUpvoted ? 700 : 400,
+              }}
+              title={props.hasUpvoted ? "Remove upvote" : "Upvote"}
+            >
+              ▲
+            </button>
+            <span style={{ color: (post.upvotes ?? 0) - (post.downvotes ?? 0) > 0 ? "green" : (post.upvotes ?? 0) - (post.downvotes ?? 0) < 0 ? "crimson" : "inherit" }}>
+              {(post.upvotes ?? 0) - (post.downvotes ?? 0)}
+            </span>
+            <button
+              onClick={props.onDownvote}
+              style={{
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                padding: 0,
+                color: props.hasDownvoted ? "crimson" : "inherit",
+                fontWeight: props.hasDownvoted ? 700 : 400,
+              }}
+              title={props.hasDownvoted ? "Remove downvote" : "Downvote"}
+            >
+              ▼
+            </button>
+          </span>
+        ) : (
+          <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            <span style={{ color: (post.upvotes ?? 0) - (post.downvotes ?? 0) > 0 ? "green" : (post.upvotes ?? 0) - (post.downvotes ?? 0) < 0 ? "crimson" : "inherit" }}>
+              {(post.upvotes ?? 0) - (post.downvotes ?? 0)}
+            </span>
+            <span>votes</span>
+          </span>
+        )}
         <button
           onClick={() => props.onOpenPost(post.noteId, post.subclaw)}
           style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", alignItems: "center", gap: 4 }}

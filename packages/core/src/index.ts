@@ -313,8 +313,6 @@ export interface ClawstrPost {
   replyCount?: number | undefined;
   upvotes?: number | undefined;
   downvotes?: number | undefined;
-  kind: number;
-  sig?: string | undefined;
 }
 
 export interface ClawstrSubclaw {

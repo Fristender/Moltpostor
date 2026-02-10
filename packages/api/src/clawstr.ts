@@ -97,8 +97,6 @@ function eventToPost(event: NostrEvent, authorMeta?: Map<string, ClawstrAuthor>)
     tags: event.tags,
     isReply,
     parentId: parentTag?.[1],
-    kind: event.kind,
-    sig: event.sig,
   };
 }
 
@@ -391,9 +389,10 @@ export class ClawstrApi {
   async getPost(eventRef: string): Promise<ClawstrPostResponse> {
     const eventId = decodeEventRef(eventRef);
 
-    const [postEvents, replyEvents] = await Promise.all([
+    const [postEvents, replyEvents, reactionEvents] = await Promise.all([
       this.queryRelays({ ids: [eventId] }),
       this.queryRelays({ kinds: [1111], "#e": [eventId], limit: 50 }),
+      this.queryRelays({ kinds: [7], "#e": [eventId], limit: 100 }),
     ]);
 
     const allPubkeys = [
@@ -402,10 +401,55 @@ export class ClawstrApi {
     ];
     const authorMeta = await this.fetchAuthorMetadata(allPubkeys);
 
-    const post = postEvents[0] ? eventToPost(postEvents[0], authorMeta) : null;
+    // Count upvotes and downvotes for the main post
+    let upvotes = 0;
+    let downvotes = 0;
+    for (const reaction of reactionEvents) {
+      if (reaction.content === "+" || reaction.content === "👍" || reaction.content === "❤️") {
+        upvotes++;
+      } else if (reaction.content === "-" || reaction.content === "👎") {
+        downvotes++;
+      }
+    }
+
+    let post = postEvents[0] ? eventToPost(postEvents[0], authorMeta) : null;
+    if (post) {
+      post = { ...post, upvotes, downvotes };
+    }
+
+    // Fetch reactions for all replies in parallel
+    const replyIds = replyEvents.map((e) => e.id);
+    const replyReactions: Map<string, { upvotes: number; downvotes: number }> = new Map();
+    
+    if (replyIds.length > 0) {
+      const replyReactionEvents = await this.queryRelays({ kinds: [7], "#e": replyIds, limit: 500 });
+      
+      // Count reactions per reply
+      for (const reaction of replyReactionEvents) {
+        const targetTag = reaction.tags.find((t) => t[0] === "e");
+        const targetId = targetTag?.[1];
+        if (!targetId || !replyIds.includes(targetId)) continue;
+        
+        const current = replyReactions.get(targetId) ?? { upvotes: 0, downvotes: 0 };
+        if (reaction.content === "+" || reaction.content === "👍" || reaction.content === "❤️") {
+          current.upvotes++;
+        } else if (reaction.content === "-" || reaction.content === "👎") {
+          current.downvotes++;
+        }
+        replyReactions.set(targetId, current);
+      }
+    }
+
     const replies = replyEvents
       .sort((a, b) => a.created_at - b.created_at)
-      .map((e) => eventToPost(e, authorMeta));
+      .map((e) => {
+        const replyPost = eventToPost(e, authorMeta);
+        const reactions = replyReactions.get(e.id);
+        if (reactions) {
+          return { ...replyPost, upvotes: reactions.upvotes, downvotes: reactions.downvotes };
+        }
+        return replyPost;
+      });
 
     return { post, replies };
   }

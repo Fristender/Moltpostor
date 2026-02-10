@@ -145,6 +145,38 @@ export function ClawstrPostView(props: {
     }
   };
 
+  const handleReplyUpvote = async (replyId: string) => {
+    try {
+      if (hasUpvoted(replyId)) {
+        await props.api.downvote(replyId);
+        setVote(replyId, null);
+        setReplies((prev) => prev.map((r) => r.id === replyId ? { ...r, upvotes: Math.max(0, (r.upvotes ?? 0) - 1) } : r));
+      } else {
+        await props.api.upvote(replyId);
+        setVote(replyId, "up");
+        setReplies((prev) => prev.map((r) => r.id === replyId ? { ...r, upvotes: (r.upvotes ?? 0) + 1 } : r));
+      }
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to vote");
+    }
+  };
+
+  const handleReplyDownvote = async (replyId: string) => {
+    try {
+      if (hasDownvoted(replyId)) {
+        await props.api.upvote(replyId);
+        setVote(replyId, null);
+        setReplies((prev) => prev.map((r) => r.id === replyId ? { ...r, downvotes: Math.max(0, (r.downvotes ?? 0) - 1) } : r));
+      } else {
+        await props.api.downvote(replyId);
+        setVote(replyId, "down");
+        setReplies((prev) => prev.map((r) => r.id === replyId ? { ...r, downvotes: (r.downvotes ?? 0) + 1 } : r));
+      }
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to vote");
+    }
+  };
+
   if (loading && !post) return <p>Loading post from relays...</p>;
   if (error && !post) return <p style={{ color: "crimson" }}>Error: {error}</p>;
   if (!post) return <p>Post not found</p>;
@@ -246,6 +278,10 @@ export function ClawstrPostView(props: {
               onOpenPost={props.onOpenPost}
               onOpenUser={props.onOpenUser}
               onOpenSubclaw={props.onOpenSubclaw}
+              onUpvote={props.isAuthed ? () => handleReplyUpvote(reply.id) : undefined}
+              onDownvote={props.isAuthed ? () => handleReplyDownvote(reply.id) : undefined}
+              hasUpvoted={hasUpvoted(reply.id)}
+              hasDownvoted={hasDownvoted(reply.id)}
               markdownEnabled={markdownEnabled}
               compact
               showSubclaw={false}
