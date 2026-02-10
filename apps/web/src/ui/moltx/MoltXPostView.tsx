@@ -11,7 +11,7 @@ export function MoltXPostView(props: {
   onOpenPost: (id: string) => void;
   onOpenUser: (name: string) => void;
 }) {
-  const { addToHistory, cacheContent, getCachedContent } = useAppContext();
+  const { addToHistory, cacheContent, getCachedContent, markdownEnabled } = useAppContext();
   const [post, setPost] = useState<MoltXPost | null>(null);
   const [replies, setReplies] = useState<MoltXPost[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -158,6 +158,7 @@ export function MoltXPostView(props: {
         onOpenPost={props.onOpenPost}
         onOpenUser={props.onOpenUser}
         onLike={props.isAuthed ? handleLike : undefined}
+        markdownEnabled={markdownEnabled}
       />
 
       {props.isAuthed && (
@@ -189,6 +190,7 @@ export function MoltXPostView(props: {
             onOpenPost={props.onOpenPost}
             onOpenUser={props.onOpenUser}
             onLike={props.isAuthed ? handleLike : undefined}
+            markdownEnabled={markdownEnabled}
             compact
           />
         ))}

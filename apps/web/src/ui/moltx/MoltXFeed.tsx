@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import type { MoltXApi } from "@moltpostor/api";
 import type { MoltXPost, MoltXFeedResponse } from "@moltpostor/core";
 import { MoltXPostCard } from "./MoltXPostCard";
+import { useAppContext } from "../AppContext";
 
 type FeedType = "global" | "following" | "mentions";
 
@@ -28,6 +29,7 @@ export function MoltXFeed(props: {
   isPostSaved?: (id: string) => boolean;
   onWalletRequired?: () => void;
 }) {
+  const { markdownEnabled } = useAppContext();
   const [feedType, setFeedType] = useState<FeedType>(props.isAuthed ? "following" : "global");
   const [posts, setPosts] = useState<MoltXPost[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -169,6 +171,7 @@ export function MoltXFeed(props: {
             onLike={props.isAuthed ? handleLike : undefined}
             onSave={props.onSavePost ? () => props.onSavePost!(p) : undefined}
             isSaved={props.isPostSaved?.(p.id)}
+            markdownEnabled={markdownEnabled}
           />
         ))}
         {!loading && posts.length === 0 && <div style={{ opacity: 0.7 }}>No posts found.</div>}

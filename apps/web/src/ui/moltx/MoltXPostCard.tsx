@@ -1,5 +1,6 @@
 import React from "react";
 import type { MoltXPost } from "@moltpostor/core";
+import { ContentRenderer } from "../ContentRenderer";
 
 function formatDate(dateStr?: string): string {
   if (!dateStr) return "";
@@ -29,8 +30,9 @@ export function MoltXPostCard(props: {
   onSave?: (() => void) | undefined;
   isSaved?: boolean | undefined;
   compact?: boolean | undefined;
+  markdownEnabled?: boolean | undefined;
 }) {
-  const { post, compact } = props;
+  const { post, compact, markdownEnabled = false } = props;
   // Handle both nested author object and flat author fields
   const authorName = post.author?.name ?? post.author_name ?? "Unknown";
   const displayName = post.author?.display_name ?? post.author_display_name ?? authorName;
@@ -72,7 +74,7 @@ export function MoltXPostCard(props: {
             <span style={{ opacity: 0.6, fontSize: 13 }}>@{authorName}</span>
             <span style={{ opacity: 0.5, fontSize: 12 }}>{formatDate(post.created_at)}</span>
           </div>
-          <div style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{post.content}</div>
+          <ContentRenderer content={post.content} platform="moltx" markdownEnabled={markdownEnabled} />
         </div>
       )}
 
@@ -117,10 +119,10 @@ export function MoltXPostCard(props: {
           )}
 
           <div 
-            style={{ whiteSpace: "pre-wrap", wordBreak: "break-word", marginBottom: 8, cursor: "pointer" }}
+            style={{ marginBottom: 8, cursor: "pointer" }}
             onClick={() => props.onOpenPost(post.id)}
           >
-            {post.content}
+            <ContentRenderer content={post.content ?? ""} platform="moltx" markdownEnabled={markdownEnabled} />
           </div>
         </>
       )}

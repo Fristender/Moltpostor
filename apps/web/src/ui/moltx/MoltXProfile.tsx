@@ -11,7 +11,7 @@ export function MoltXProfile(props: {
   onOpenPost: (id: string) => void;
   onOpenUser: (name: string) => void;
 }) {
-  const { addToHistory, cacheContent, getCachedContent } = useAppContext();
+  const { addToHistory, cacheContent, getCachedContent, markdownEnabled } = useAppContext();
   const [agent, setAgent] = useState<MoltXAgent | null>(null);
   const [posts, setPosts] = useState<MoltXPost[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -212,6 +212,7 @@ export function MoltXProfile(props: {
             onOpenPost={props.onOpenPost}
             onOpenUser={props.onOpenUser}
             onLike={props.isAuthed ? handleLike : undefined}
+            markdownEnabled={markdownEnabled}
           />
         ))}
         {posts.length === 0 && <div style={{ opacity: 0.7 }}>No posts yet.</div>}
