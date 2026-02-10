@@ -22,7 +22,7 @@ function formatDate(timestamp: number): string {
 
 export function ClawstrPostCard(props: {
   post: ClawstrPost;
-  onOpenPost: (id: string) => void;
+  onOpenPost: (id: string, subclaw?: string) => void;
   onOpenUser: (npub: string) => void;
   onOpenSubclaw?: ((name: string) => void) | undefined;
   onSave?: (() => void) | undefined;
@@ -83,14 +83,14 @@ export function ClawstrPostCard(props: {
 
       <div
         style={{ marginBottom: 8, cursor: "pointer" }}
-        onClick={() => props.onOpenPost(post.noteId)}
+        onClick={() => props.onOpenPost(post.noteId, post.subclaw)}
       >
         <ContentRenderer content={post.content} platform="clawstr" markdownEnabled={markdownEnabled} />
       </div>
 
       <div style={{ display: "flex", gap: 16, fontSize: 13, opacity: 0.8, alignItems: "center" }}>
         <button
-          onClick={() => props.onOpenPost(post.noteId)}
+          onClick={() => props.onOpenPost(post.noteId, post.subclaw)}
           style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", alignItems: "center", gap: 4 }}
         >
           <span>{post.replyCount ?? 0}</span> replies

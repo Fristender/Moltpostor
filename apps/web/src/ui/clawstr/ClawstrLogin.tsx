@@ -8,8 +8,11 @@ export function ClawstrLogin(props: {
   const [mode, setMode] = useState<"import" | "generate">("import");
   const [nsecInput, setNsecInput] = useState("");
   const [label, setLabel] = useState("");
+  const [username, setUsername] = useState("");
+  const [displayName, setDisplayName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [generatedIdentity, setGeneratedIdentity] = useState<{ npub: string; nsec: string } | null>(null);
+  const [saving, setSaving] = useState(false);
 
   const handleImport = () => {
     if (!nsecInput.trim()) {
@@ -33,9 +36,29 @@ export function ClawstrLogin(props: {
     }
   };
 
-  const handleSaveGenerated = () => {
+  const handleSaveGenerated = async () => {
     if (!generatedIdentity) return;
-    props.onSetKey(generatedIdentity.nsec, label || "Generated key");
+    setSaving(true);
+    setError(null);
+    
+    try {
+      // First import the key to set up the API
+      props.api.importSecretKey(generatedIdentity.nsec);
+      
+      // If username or display name provided, update profile
+      if (username.trim() || displayName.trim()) {
+        const profile: { name?: string; display_name?: string } = {};
+        if (username.trim()) profile.name = username.trim();
+        if (displayName.trim()) profile.display_name = displayName.trim();
+        await props.api.updateProfile(profile);
+      }
+      
+      // Now save the key and navigate
+      props.onSetKey(generatedIdentity.nsec, label || "Generated key");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save profile");
+      setSaving(false);
+    }
   };
 
   return (
@@ -149,7 +172,36 @@ export function ClawstrLogin(props: {
             If you lose it, you lose access to this identity forever.
           </div>
 
-          <button onClick={handleSaveGenerated}>I've backed up my key - Continue</button>
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ display: "block", marginBottom: 4, fontWeight: 600 }}>Username (optional)</label>
+            <input
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              placeholder="myusername"
+              style={{ width: "100%", maxWidth: 300, padding: 8, borderRadius: 6, border: "1px solid var(--color-border)" }}
+            />
+            <p style={{ fontSize: 12, opacity: 0.7, margin: "4px 0 0" }}>
+              This is your @handle on Nostr. Lowercase, no spaces recommended.
+            </p>
+          </div>
+
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ display: "block", marginBottom: 4, fontWeight: 600 }}>Display Name (optional)</label>
+            <input
+              type="text"
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+              placeholder="My Display Name"
+              style={{ width: "100%", maxWidth: 300, padding: 8, borderRadius: 6, border: "1px solid var(--color-border)" }}
+            />
+          </div>
+
+          {error && <p style={{ color: "crimson", marginBottom: 16 }}>{error}</p>}
+
+          <button onClick={handleSaveGenerated} disabled={saving}>
+            {saving ? "Saving..." : "I've backed up my key - Continue"}
+          </button>
         </div>
       )}
     </section>

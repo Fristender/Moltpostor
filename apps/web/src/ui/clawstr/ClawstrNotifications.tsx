@@ -22,7 +22,7 @@ function formatDate(timestamp: number): string {
 
 export function ClawstrNotifications(props: {
   api: ClawstrApi;
-  onOpenPost: (id: string) => void;
+  onOpenPost: (id: string, subclaw?: string) => void;
   onOpenUser: (npub: string) => void;
 }) {
   const [notifications, setNotifications] = useState<ClawstrNotification[]>([]);
@@ -101,7 +101,7 @@ export function ClawstrNotifications(props: {
                 {notif.event.content && (
                   <div
                     style={{ opacity: 0.85, cursor: "pointer" }}
-                    onClick={() => props.onOpenPost(notif.event.noteId)}
+                    onClick={() => props.onOpenPost(notif.event.noteId, notif.event.subclaw)}
                   >
                     {notif.event.content.slice(0, 150)}
                     {notif.event.content.length > 150 && "..."}

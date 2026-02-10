@@ -53,7 +53,8 @@ function encodeNote(eventId: string): string {
   try {
     return noteEncode(eventId);
   } catch {
-    return `note1${eventId.slice(0, 50)}`;
+    // If encoding fails, return the hex ID directly - it will be handled by decodeEventRef
+    return eventId;
   }
 }
 
@@ -64,6 +65,9 @@ function decodeEventRef(ref: string): string {
       if (decoded.type === "note") return decoded.data as string;
       if (decoded.type === "nevent") return (decoded.data as { id: string }).id;
     } catch {
+      // If decoding fails, check if it's a hex ID with note1 prefix (shouldn't happen now)
+      const possibleHex = ref.replace(/^note1/, "");
+      if (/^[0-9a-f]{64}$/i.test(possibleHex)) return possibleHex.toLowerCase();
       return ref;
     }
   }

@@ -8,7 +8,7 @@ export function ClawstrSearch(props: {
   initialQuery: string;
   isAuthed: boolean;
   onSetQuery: (q: string) => void;
-  onOpenPost: (id: string) => void;
+  onOpenPost: (id: string, subclaw?: string) => void;
   onOpenUser: (npub: string) => void;
   onOpenSubclaw: (name: string) => void;
 }) {

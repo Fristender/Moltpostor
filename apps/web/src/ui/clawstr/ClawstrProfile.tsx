@@ -9,7 +9,7 @@ export function ClawstrProfile(props: {
   api: ClawstrApi;
   npub: string;
   isAuthed: boolean;
-  onOpenPost: (id: string) => void;
+  onOpenPost: (id: string, subclaw?: string) => void;
   onOpenUser: (npub: string) => void;
   onOpenSubclaw: (name: string) => void;
 }) {

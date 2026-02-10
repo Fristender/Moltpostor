@@ -8,7 +8,7 @@ import { useAppContext } from "../AppContext";
 export function ClawstrFeed(props: {
   api: ClawstrApi;
   isAuthed: boolean;
-  onOpenPost: (id: string) => void;
+  onOpenPost: (id: string, subclaw?: string) => void;
   onOpenUser: (npub: string) => void;
   onOpenSubclaw: (name: string) => void;
   onCompose?: () => void;

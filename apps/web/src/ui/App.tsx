@@ -66,7 +66,7 @@ type Page =
   | { kind: "moltx-hashtag"; tag: string }
   // Clawstr pages
   | { kind: "clawstr-feed" }
-  | { kind: "clawstr-post"; id: string }
+  | { kind: "clawstr-post"; id: string; subclaw?: string | undefined }
   | { kind: "clawstr-user"; npub: string }
   | { kind: "clawstr-search"; q: string }
   | { kind: "clawstr-compose"; subclaw?: string }
@@ -213,6 +213,11 @@ function parseRoute(hash: string): Page {
   // Clawstr routes
   if (parts[0] === "clawstr") {
     if (parts.length === 1 || parts[1] === "feed") return { kind: "clawstr-feed" };
+    // New format: #/clawstr/c/{subclaw}/post/{id}
+    if (parts[1] === "c" && parts[2] && parts[3] === "post" && parts[4]) {
+      return { kind: "clawstr-post", id: decodeURIComponent(parts[4]), subclaw: decodeURIComponent(parts[2]) };
+    }
+    // Old format fallback: #/clawstr/post/{id}
     if (parts[1] === "post" && parts[2]) return { kind: "clawstr-post", id: decodeURIComponent(parts[2]) };
     if (parts[1] === "user" && parts[2]) return { kind: "clawstr-user", npub: decodeURIComponent(parts[2]) };
     if (parts[1] === "search") return { kind: "clawstr-search", q: params.get("q")?.trim() ?? "" };
@@ -286,7 +291,9 @@ function pageToHash(page: Page): string {
     case "moltx-hashtag": return `#/moltx/hashtag/${encodeURIComponent(page.tag)}`;
     // Clawstr routes
     case "clawstr-feed": return "#/clawstr/feed";
-    case "clawstr-post": return `#/clawstr/post/${encodeURIComponent(page.id)}`;
+    case "clawstr-post": return page.subclaw 
+      ? `#/clawstr/c/${encodeURIComponent(page.subclaw)}/post/${encodeURIComponent(page.id)}`
+      : `#/clawstr/post/${encodeURIComponent(page.id)}`;
     case "clawstr-user": return `#/clawstr/user/${encodeURIComponent(page.npub)}`;
     case "clawstr-search": return page.q ? `#/clawstr/search?q=${encodeURIComponent(page.q)}` : "#/clawstr/search";
     case "clawstr-compose": return page.subclaw ? `#/clawstr/compose?subclaw=${encodeURIComponent(page.subclaw)}` : "#/clawstr/compose";
@@ -860,7 +867,7 @@ export function App() {
             <ClawstrFeed
               api={clawstrApi}
               isAuthed={clawstrIsAuthed}
-              onOpenPost={(id) => clawstrNavigate({ kind: "clawstr-post", id })}
+              onOpenPost={(id, subclaw) => clawstrNavigate({ kind: "clawstr-post", id, subclaw })}
               onOpenUser={(npub) => clawstrNavigate({ kind: "clawstr-user", npub })}
               onOpenSubclaw={(name) => clawstrNavigate({ kind: "clawstr-subclaw", name })}
               onCompose={() => clawstrNavigate({ kind: "clawstr-compose" })}
@@ -885,7 +892,7 @@ export function App() {
               api={clawstrApi}
               postId={page.id}
               isAuthed={clawstrIsAuthed}
-              onOpenPost={(id) => clawstrNavigate({ kind: "clawstr-post", id })}
+              onOpenPost={(id, subclaw) => clawstrNavigate({ kind: "clawstr-post", id, subclaw })}
               onOpenUser={(npub) => clawstrNavigate({ kind: "clawstr-user", npub })}
               onOpenSubclaw={(name) => clawstrNavigate({ kind: "clawstr-subclaw", name })}
             />
@@ -895,7 +902,7 @@ export function App() {
               api={clawstrApi}
               npub={page.npub}
               isAuthed={clawstrIsAuthed}
-              onOpenPost={(id) => clawstrNavigate({ kind: "clawstr-post", id })}
+              onOpenPost={(id, subclaw) => clawstrNavigate({ kind: "clawstr-post", id, subclaw })}
               onOpenUser={(npub) => clawstrNavigate({ kind: "clawstr-user", npub })}
               onOpenSubclaw={(name) => clawstrNavigate({ kind: "clawstr-subclaw", name })}
             />
@@ -906,7 +913,7 @@ export function App() {
               initialQuery={page.q}
               isAuthed={clawstrIsAuthed}
               onSetQuery={(q) => clawstrNavigate({ kind: "clawstr-search", q })}
-              onOpenPost={(id) => clawstrNavigate({ kind: "clawstr-post", id })}
+              onOpenPost={(id, subclaw) => clawstrNavigate({ kind: "clawstr-post", id, subclaw })}
               onOpenUser={(npub) => clawstrNavigate({ kind: "clawstr-user", npub })}
               onOpenSubclaw={(name) => clawstrNavigate({ kind: "clawstr-subclaw", name })}
             />
@@ -921,7 +928,7 @@ export function App() {
           {page.kind === "clawstr-notifications" && (
             <ClawstrNotifications
               api={clawstrApi}
-              onOpenPost={(id) => clawstrNavigate({ kind: "clawstr-post", id })}
+              onOpenPost={(id, subclaw) => clawstrNavigate({ kind: "clawstr-post", id, subclaw })}
               onOpenUser={(npub) => clawstrNavigate({ kind: "clawstr-user", npub })}
             />
           )}
@@ -930,7 +937,7 @@ export function App() {
               api={clawstrApi}
               subclaw={page.name}
               isAuthed={clawstrIsAuthed}
-              onOpenPost={(id) => clawstrNavigate({ kind: "clawstr-post", id })}
+              onOpenPost={(id, subclaw) => clawstrNavigate({ kind: "clawstr-post", id, subclaw })}
               onOpenUser={(npub) => clawstrNavigate({ kind: "clawstr-user", npub })}
               onOpenSubclaw={(name) => clawstrNavigate({ kind: "clawstr-subclaw", name })}
               onCompose={() => clawstrNavigate({ kind: "clawstr-compose", subclaw: page.name })}

@@ -9,7 +9,7 @@ export function ClawstrSubclawFeed(props: {
   api: ClawstrApi;
   subclaw: string;
   isAuthed: boolean;
-  onOpenPost: (id: string) => void;
+  onOpenPost: (id: string, subclaw?: string) => void;
   onOpenUser: (npub: string) => void;
   onOpenSubclaw: (name: string) => void;
   onCompose?: () => void;
